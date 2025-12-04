@@ -1,0 +1,1290 @@
+\documentclass[floatfix,%
+ reprint,
+ amsmath,amssymb,
+ aps,
+ %prd,
+ superscriptaddress,
+ %longbibliography
+]{revtex4-2}
+\usepackage{lmodern}
+\usepackage{mathtools}
+\usepackage[retainorgcmds]{IEEEtrantools}
+\usepackage{graphicx}
+\usepackage{dcolumn}
+\usepackage{bm}
+\usepackage{color}
+\usepackage{multirow}
+\usepackage{booktabs}
+\usepackage{array}
+%\usepackage[sort&compress]{natbib}
+%\bibliographystyle{unsrt}
+\usepackage{amsmath}      
+\usepackage{amsfonts}     
+\usepackage{amssymb}      
+\usepackage{siunitx}     
+\usepackage{adjustbox}
+\usepackage{mathtools} 
+\usepackage[caption=false]{subfig} 
+\usepackage{graphicx}
+%\usepackage[T1]{fontenc}         
+%\usepackage{newtxtext,newtxmath}
+
+\newcommand{\ud}{\mathrm{d}}
+
+%\newcommand{\na}{New Astron.}
+\newcommand{\mnras}{Mon. Not. R. Astron. Soc.}
+\newcommand{\jcap}{J. Cosmol. Astropart. P.}
+\newcommand{\aap}{Astron. Astrophys.}
+%\newcommand{\apj}{Astrophys. J.}
+\newcommand{\apjl}{Astrophys. J. Lett.}
+\newcommand{\apjs}{Astrophys. J. Suppl. Ser.}
+\newcommand{\aj}{Astron. J.}
+\newcommand{\araa}{Annu. Rev. Astron. Astrophys.}
+\newcommand{\pasa}{Publ. Astron. Soc. Austral.}
+\newcommand{\pasp}{Publ. Astron. Soc. Pac.}
+\newcommand{\physrep}{Phys. Rep.}
+\newcommand{\nphysa}{Nucl. Phys. A}
+
+\newcommand{\update}[1]{\textcolor{magenta}{#1}}
+
+
+\begin{document}
+
+%\preprint{PRD/2025-XXX}
+
+%\title{BBNet: A Fast, Accurate Deep-Learning Emulator for Big-Bang Nucleosynthesis Light-Element Abundances}
+\title{BBNet: accurate neural network emulator for primordial light element abundances}
+
+\author{Fan Zhang}
+\affiliation{State Key Laboratory of Ocean Sensing \& Ocean College, Zhejiang University, Zhoushan, Zhejiang 316000, China}
+\affiliation{Kavli Institute for Astrophysics and Space Research, Massachusetts Institute of Technology, Cambridge, MA, 02139, USA} 
+
+\author{Hang Diao}
+\affiliation{State Key Laboratory of Ocean Sensing \& Ocean College, Zhejiang University, Zhoushan, Zhejiang 316000, China}
+
+\author{Bohua Li}
+\email{bohuali@gxu.edu.cn}
+\affiliation{Guangxi Key Laboratory for Relativistic Astrophysics, School of Physical Science and Technology, Guangxi University, Nanning, Guangxi, 530004, China}
+%\thanks{Corresponding author}
+
+\author{Joel Meyers}
+\affiliation{Department of Physics, Southern Methodist University, Dallas, TX 75275, USA}
+
+\author{Paul R. Shapiro}
+\affiliation{Department of Astronomy, The University of Texas at Austin, Austin, TX 78712, USA}
+
+%\author{Erik Katsavounidis}
+%\affiliation{Kavli Institute for Astrophysics and Space Research, Massachusetts Institute of Technology, Cambridge, MA, 02139, USA} 
+
+\begin{abstract}
+Big Bang Nucleosynthesis (BBN) predictions of primordial light-element abundances offer a powerful probe of early-universe physics. However, high-accuracy BBN solvers—such as \verb|PArthENoPE| and \verb|AlterBBN|—require significant computational resources due to their complex nuclear networks, limiting their use in large-scale cosmological inference. We present \verb|BBNet|, a fast, accurate, and differentiable deep learning emulator for BBN predictions, trained on full-network outputs of both \verb|PArthENoPE| and \verb|AlterBBN|, including extensions to stiff-fluid cosmologies via the $\kappa_\mathrm{10}$ parameter. \verb|BBNet| predicts deuterium and helium-4 abundances with sub-observational errors in $\sim$6 milliseconds per sample—achieving up to $10^4\times$ speedups over traditional solvers—while remaining unbiased across a wide parameter space. The network employs a residual multi-head architecture to capture complex nuclear dependencies, supporting integration into gradient-based cosmological pipelines. Extensive benchmarks confirm its robustness and accuracy, establishing \verb|BBNet| as a reliable tool for precision cosmology and new physics searches.
+\end{abstract}
+
+%\keywords{Big Bang nucleosynthesis, deep learning, cosmological parameters, neural networks, primordial abundances}
+\maketitle
+
+
+\section{Introduction}
+\label{sec:intro}
+
+Primordial abundances of the light elements
+produced during big-bang nucleosynthesis (BBN)
+present a direct probe of the physical conditions in the early Universe
+\cite{1949PhRv...75.1089A,1998RvMP...70..303S,2006NuPhA.777..208F}.
+The agreement between their predictions and observations
+supports the concordance hot big-bang cosmology
+\cite{2007ARNPS..57..463S,2016RvMP...88a5004C,2020JCAP...03..010F}.
+%In the first few minutes after the Big Bang, as the Universe cooled from ~$10^{10}\ \text{K}$ to $10^{9}\ \text{K}$, protons and neutrons in the cosmic plasma fused into the first atomic nuclei. This epoch, known as Big Bang Nucleosynthesis (BBN), established the primordial abundances of light elements—primarily deuterium ($^2$H), helium-3 ($^3$He), helium-4 ($^4$He), and lithium-7 ($^7$Li)—which persist today and are observed in pristine astrophysical environments, 
+In particular, the primordial helium and deuterium abundances
+together offer one of the most stringent constraints
+on the standard $\Lambda$CDM model (e.g., on the baryon density)
+as well as new physics beyond the Standard Model (BSM)
+\cite{1995Sci...267..192C,2009PhR...472....1I,2010ARNPS..60..539P,2022JCAP...10..046Y}.
+%The sub-percent precision of primordial deuterium measurements using quasar absorption systems~\cite{Cooke2018} demands equally accurate theoretical predictions. 
+
+The precision of the BBN constraints depends on
+accurate theoretical calculations of the BBN reaction network
+\cite{1967ApJ...148....3W,2004JCAP...12..010S,2012ApJ...744..158C}.
+However, the nuclear reaction rates that enter the BBN network
+are subject to laboratory measurement uncertainties
+\cite{2011RvMP...83..195A,2013NuPhA.918...61X,2016ApJ...831..107I,2021ApJ...923...49M},
+and the propagated uncertainties on the primordial element abundances
+from BBN calculations are often significant
+\cite{1998PhRvD..58f3506F,2016PhRvL.116j2501M,2020Natur.587..210M,2021JCAP...03..046Y}.
+In the case of the D/H abundance, the theoretical uncertainty
+is in fact the dominant source of error
+compared with the uncertainty from astrophysical measurements
+\cite{2015PhRvD..92l3526C,2018ApJ...855..102C,2021JCAP...04..020P}.
+Additional uncertainties may arise from
+the prescription of neutrino physics during weak decoupling, 
+which partially overlaps the early stage of BBN
+\cite{2016PhRvD..93h3522G,2019JCAP...02..007E}.
+Therefore, it is crucial that the BBN calculation itself,
+which involves solving the set of coupled ordinary differential equations (ODEs)
+that describe the BBN network,
+does not add to the theoretical errors.
+%Modern BBN calculations rely on detailed nuclear reaction networks and cross-section data measured in laboratories worldwide. 
+
+
+Modern numerical solvers have been developed to meet this need,
+including public BBN codes \verb|PArthENoPE|
+\cite{2008CoPhC.178..956P,2018CoPhC.233..237C,2022CoPhC.27108205G},
+\verb|AlterBBN| \cite{2012CoPhC.183.1822A,2018arXiv180611095A},
+\verb|PRIMAT| \cite{2018PhR...754....1P}, \verb|PRyMordial| \cite{2024EPJC...84...86B},
+\verb|pyBBN| \cite{2020JCAP...11..056S}, etc.
+%and \verb|BURST|~\cite{2016PhRvD..93h3522G} 
+%offer modular frameworks for incorporating new physics.
+Most of these methods are updates of the earlier Kawano code,
+\verb|NUC123| \cite{1992STIN...9225163K},
+which is itself based on the historical Wagoner code \cite{1969ApJS...18..247W,1973ApJ...179..343W}.
+They yield accurate solutions of primordial abundances,
+while some of the codes entertain various BSM scenarios.
+However, the computational demands of these first-principles methods are high;
+even the fastest BBN codes should take $\mathcal{O}(0.1)$ seconds
+for a single execution in simplified settings and longer in full settings.
+Taking \verb|PArthENoPE| for example, a single run can cost tens of seconds on a CPU
+with its complete 26-nuclide configuration.
+Such costs pose a serious challenge to parameter inference tasks
+based on standard techniques such as Markov chain Monte Carlo (MCMC) sampling,
+which typically require thousands of evaluations to explore posterior distributions.
+The burden is exacerbated in BSM scenarios that involve additional parameters,
+e.g., variations of fundamental constants, dark radiation,
+nonzero neutrino chemical potentials, sterile neutrinos,
+\cite{2005PhRvD..71l3524B,2015PhRvD..91h3505N,2018arXiv180611095A,
+2020JCAP...11..056S,2022CoPhC.27108205G,2024EPJC...84...86B}, etc.
+
+
+This computational bottleneck often forces
+compromises in the numerical treatments of BBN calculations.
+Some methods adopt or provide simplified nuclear reaction networks,
+achieving faster computation at the cost of introducing systematic biases.
+For example, even the recently developed codes \verb|PRyMordial| and \verb|LINX|
+consider only 62 reactions in their ``full'' network with 12 nuclides
+\cite{2024arXiv240814538G}, in contrast to the ``complete'' network of 100 reactions
+in \verb|PArthENoPE| and \verb|AlterBBN|.
+Another approach to speed up is
+to use less accurate integration algorithms for the ODEs.
+\verb|AlterBBN| offers a spectrum of ODE solvers
+to explore the speed-accuracy trade-off \cite{2018arXiv180611095A}.
+%optimized calculation schemes in codes like \verb|AlterBBN| v2.2 utilize precalculated tables and streamlined numerics for efficiency, but can exhibit reduced precision or introduce subtle biases when probing the full parameter space, particularly under non-standard cosmological conditions.
+Apart from these efforts, the interface between the BBN code
+and Bayesian inference applications are optimized in the \verb|LINX| package,
+which enables gradient-assisted inference
+that achieves faster convergence than MCMC \cite{2024arXiv240814538G}.
+
+
+In this paper, we introduce \verb|BBNet|, a deep learning emulator
+for efficient and accurate BBN computations of primordial element abundances.
+We employ multi-layer perceptrons with residual connections
+as the main architecture of \verb|BBNet|,
+together with a multi-head attention module
+\cite{He2016, Goodfellow-et-al-2016,Vaswani2017}.
+Based on the training data generated by existing BBN codes,
+\verb|PArthENoPE| and \verb|AlterBBN|,
+our emulator can output the primordial helium and deuterium abundances
+in $\sim 6$\,ms per sample on an NVIDIA A100 GPU
+and in $\sim 2.5$\,ms per sample with batch processing.
+This corresponds to a speed-up of $\mathcal{O}(10^4)$ times
+compared with first-principles BBN calculations.
+
+The high computational efficiency of \verb|BBNet|
+is particularly helpful in exploring scenarios that involve BSM physics.
+In its current version, we consider an extra dark radiation component,
+parameterized by the number of extra relativistic species,
+and a possible kination/stiff phase in the early Universe \cite{2010PhRvD..82h3501D}.
+The latter is a pre-BBN era in the expansion history
+during which the total energy density of the Universe
+is dominated by the kinetic energy of a scalar field
+\cite{1985PhLB..155..232B,1993PhLB..315...40S,1997PhRvD..55.1875J,2025PhRvL.135j1002E}.
+During kination or a stiff phase, the equation of state (EoS)
+of the Universe is given by that of a stiff fluid,
+$\bar{w} \equiv P / \bar{\rho} = 1$.
+It can occur in extended cosmological models
+with quintessence, ultralight scalar field dark matter, QCD axion
+\cite{1999PhRvD..59f3505P,2014PhRvD..89h3536L,2025SCPMA..6880409Y,2020PhRvL.124y1802C}, etc.
+
+
+\verb|BBNet| attains exceptional emulation accuracy
+in addition to its speed advantage.
+The relative root mean square (RMS) errors
+between the predicted primordial abundances, $Y_\mathrm{P}$ and D/H,
+and their ground-truth values from the BBN calculations
+are typically of the order of 0.1\% or less.
+The predictions of the emulator are also unbiased,
+achieving a mean percentage error below 0.1\%.
+The errors from \verb|BBNet| emulations are thus negligible compared with
+current theoretical and observational uncertainties of $Y_\mathrm{P}$ and D/H.
+The unprecedented speed and accuracy of \verb|BBNet|
+present a solution to the BBN computational bottleneck,
+reducing the cost of high-dimensional cosmological analyses by orders of magnitude.
+By integrating \verb|BBNet| into MCMC pipelines,
+one can perform efficient joint analyses of large cosmological data sets
+based on extended models without compromising the accuracy of BBN computations.
+
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:bbn_physics} presents a brief overview of BBN physics
+and then describes the BBN codes and the cosmological model considered in this work.
+Section~\ref{sec:methodology} provides a detailed description of our data generation strategy and the architecture of the \verb|BBNet| neural network emulator.
+Section~\ref{sec:training} discusses the optimization protocols,
+regularization techniques, and validation procedures for training the emulator.
+In Section~\ref{sec:results}, we present comprehensive
+performance benchmarks and accuracy assessments.
+%comparing the predictions of \verb|BBNet| with the ground truth and astrophysical measurements.
+Section~\ref{sec:comparison} compares the performance of \verb|BBNet|
+with those of existing fast approximation modes
+internal to \verb|PArthENoPE| and \verb|AlterBBN|.
+Finally, Section~\ref{sec:conclusion} summarizes our key conclusions
+and proposes directions for future research.
+
+
+
+\section{BBN calculation and cosmological model}
+\label{sec:bbn_physics}
+
+This section reviews the key aspects of BBN,
+including the thermal history of the early Universe, the nuclear reaction network,
+and the numerical techniques required by BBN calculations.
+We then describe the BSM physics that we take into account in this work.
+We correspondingly modify the public BBN codes, \verb|PArthENoPE| and \verb|AlterBBN|,
+to implement the extended cosmological model.
+
+
+\subsection{BBN as the primordial nuclear reactor}
+
+The Universe had cooled to temperatures below $10^{10}\,\si{\kelvin}$
+in about 1\,s after the Big Bang \cite{2008cosm.book.....W}.
+At this epoch, the rate of weak interactions responsible for neutron–proton conversion
+started to fall below the Hubble expansion rate,
+leading to the freeze-out of the neutron-to-proton ratio, $n/p$
+\cite{2002PhR...370..333D}.
+%weak interactions maintained the thermal equilibrium
+%between protons ($p$) and neutrons ($n$),
+%so that the neutron-to-proton ratio was set by the Boltzmann factor,
+%${n_n}/{n_p} = \exp\left(-{Q}/{k_\mathrm{B}T}\right)$.
+%Here $Q = m_n - m_p = 1.293\,\si{\mega\electronvolt}$
+%is the neutron-proton mass difference and $k_B$ is the Boltzmann constant.
+%This decoupling, or ``freeze-out,'' occurred at a temperature $T_f \approx 0.7\,\si{\mega\electronvolt}$, corresponding to a time $t_f \approx 1\,\si{\second}$ 
+After freeze-out, beta decays of free neutrons
+slightly decreased the ratio to $n/p\approx 1/7$,
+setting the stage for nucleosynthesis \cite{2016RvMP...88a5004C}.
+
+
+The first few reactions in the nuclear chain are concerned with
+the synthesis of deuterium via $p + n \leftrightarrow d + \gamma$,
+which had to overcome the so-called deuterium bottleneck
+due to the huge number of photons at $T\gtrsim 0.1$\,MeV.
+%The stage was set for nuclear fusion, but a critical condition remained: the temperature had to decrease sufficiently for newly formed deuterium nuclei ($d$) to survive photodissociation. This condition was met when the temperature dropped to $T \approx 0.07\,\si{\mega\electronvolt}$ (approximately 100 seconds after the Big Bang).
+Only at lower temperatures can deuterium be massively produced,
+and a rapid sequence of BBN reactions then commenced.
+%\begin{align}
+%p + n &\rightarrow d + \gamma \label{eq:pns}\\
+%d + d &\rightarrow {}^{3}\mathrm{He} + n \quad \text{or} \quad {}^{3}\mathrm{H} + p \label{eq:dd}\\
+%{}^{3}\mathrm{He} + n &\rightarrow {}^{4}\mathrm{He} + \gamma \label{eq:h3n}\\
+%{}^{3}\mathrm{H} + p &\rightarrow {}^{4}\mathrm{He} + \gamma \label{eq:h3p}
+%\end{align}
+These reactions efficiently converted nearly all available neutrons
+into helium-4 ($^4\mathrm{He}$) within three minutes after the Big Bang,
+since it is the most tightly bound nuclide among light elements
+\cite{2006IJMPE..15....1S}.
+The primordial helium abundance expressed
+in terms of the (approximate) mass fraction,
+$Y_\mathrm{P}\equiv 4\,n_\mathrm{^4He}/n_\mathrm{b}$,
+is thus primarily determined by the neutron-to-proton ratio at freeze-out;
+$Y_\mathrm{P}\simeq 0.25$ in standard BBN.
+Here $n_\mathrm{b}$ is the total number density of baryons.
+Other light nuclides are synthesized at the same time,
+including helium-3 and lithium-7.
+%($^3\mathrm{He}$) ($^7\mathrm{Li}$)
+
+%\begin{align}
+%d + d &\rightarrow {}^{3}\mathrm{H} + p \label{eq:dd2}\\
+%{}^{3}\mathrm{He} + d &\rightarrow {}^{4}\mathrm{He} + p \label{eq:h3d}\\
+%{}^{3}\mathrm{He} + {}^{4}\mathrm{He} &\rightarrow {}^{7}\mathrm{Be} + \gamma \label{eq:h3he}\\
+%{}^{7}\mathrm{Be} + n &\rightarrow {}^{7}\mathrm{Li} + p \label{eq:be7n}
+%\end{align}
+In standard BBN, the final values of the light element abundances
+are sensitive to two physical parameters:
+(i) the baryon-to-photon ratio, $\eta \equiv n_\mathrm{b}/n_\gamma$,
+and (ii) the free neutron lifetime, $\tau_n$.
+The baryon-to-photon ratio describes the baryon density of the Universe.
+A higher value of $\eta$ leads to more efficient deuterium burning,
+resulting in a lower primordial deuterium abundance,
+$\mathrm{D/H}\equiv n_\mathrm{D}/n_\mathrm{H}$
+\cite{2007ARNPS..57..463S,1995Sci...267..192C}.
+%$y_\mathrm{DP}\equiv 10^5\,n_\mathrm{D}/n_\mathrm{H}$ but higher $Y_\mathrm{P}$ and $^7$Li/H 
+Meanwhile, the longer the neutron lifetime,
+the higher the value of $n/p$ due to fewer decays
+and hence higher $Y_\mathrm{P}$.
+Therefore, even though these two parameters are well measured
+by other astronomical observations or laboratory experiments
+\cite{2020A&A...641A...6P,2021PhRvL.127p2501G},
+BBN provides an independent verification.
+
+
+\subsection{Nuclear network and differential equations}
+
+Modern BBN calculations are computationally intensive
+due to the need to evolve an extensive nuclear reaction network,
+often composed of tens of nuclear species
+linked by over a hundred reactions \cite{1967ApJ...148....3W}.
+For example, \verb|PArthENoPE| and \verb|AlterBBN|
+consider the same 100 reactions for 26 nuclides
+\cite{2008CoPhC.178..956P,2012CoPhC.183.1822A},
+while \verb|PRIMAT| evolves as many as 391 reactions for 59 nuclides
+\cite{2012ApJ...744..158C,2018PhR...754....1P}.
+In each BBN code, the corresponding system of coupled ODEs
+is integrated to obtain the primordial element abundances.
+Defining $Y_i\equiv n_i/n_\mathrm{b}$ for the $i$th nuclear species
+($n_i$ is its number density),
+one can express the general form of the ODE
+that describes a reaction in the network as
+\begin{equation}\label{eq:nuc}
+\begin{split}
+\dot{Y}_{i_1} = &
+\sum_{i_2 \ldots i_p, j_1 \ldots j_q} 
+N_{i_1}\,\Bigg( 
+\Gamma_{j_1 \ldots j_q \rightarrow i_1 \ldots i_p} 
+\frac{Y_{j_1}^{N_{j_1}} \cdots Y_{j_q}^{N_{j_q}}}{N_{j_1}! \cdots N_{j_q}!} \\
+& \qquad -\Gamma_{i_1 \ldots i_p \rightarrow j_1 \ldots j_q} 
+\frac{Y_{i_1}^{N_{i_1}} \cdots Y_{i_p}^{N_{i_p}}}{N_{i_1}! \cdots N_{i_p}!}
+\Bigg)\,,
+\end{split}
+\end{equation}
+without restricting to two-body reactions
+\cite{1969ApJS...18..247W,2018PhR...754....1P}.
+Here $N_i$ is the stoichiometric coefficient of species $i$
+(the number of the $i$th nuclide) in the reaction
+and $\Gamma_{i_1 \ldots i_p \rightarrow j_1 \ldots j_q}$
+denotes the nuclear reaction rates,
+proportional to the thermally averaged cross sections, $\langle\sigma v\rangle$.
+Eq.~(\ref{eq:nuc}) results from the Boltzmann equation.
+Nontrivial phases in the thermal history of the early Universe,
+such as electron-positron annihilation and neutrino decoupling,
+affect the nuclear network via the energy densities of relevant species
+and the Hubble expansion rate \cite{2005NuPhB.729..221M,2016PhRvD..93h3522G}.
+%$N_{ijk\ell m}$ represents the net number of particles of type $i$ produced in the reaction $j+k \rightarrow \ell+m$, $\langle\sigma v\rangle_{jk\rightarrow \ell m}$ is the thermally averaged cross section for the reaction, and $Y_i^{(0)}$ denotes the equilibrium abundance of species $i$. The term $n_b^{N_{ijk\ell m}-1}$ accounts for the dependence on baryon density.
+%The thermonuclear cross-sections, $\langle\sigma v\rangle$, vary non-trivially with temperature and are derived from experimental measurements and theoretical extrapolations. 
+
+The resulting system of ODEs is highly stiff
+because the timescales of nuclear reactions
+span many orders of magnitude \cite{2024EPJC...84...86B}.
+Its numerical integration requires extremely small step sizes
+when rapid burning occurs, which is otherwise suboptimal
+for accurately resolving slower weak interactions
+at the onset of BBN calculations \cite{2018PhR...754....1P,2016RvMP...88a5004C}.
+In the meantime, stringent tolerance is needed
+to avoid secular drifts in the predicted abundances.
+%\cite{1993ApJS...85..219S}.
+Furthermore, each integration step often involves
+repeated interpolations of a grid of reaction rates
+and an implicit solution to the temperature-entropy evolution
+\cite{2018PhR...754....1P,2016RvMP...88a5004C,2016PhRvD..93h3522G}.
+Hence, all of the above factors and the sheer dimensionality of the network
+combine to make traditional first-principles BBN computations
+exceedingly time-consuming \cite{2018CoPhC.233..237C}.
+This motivates our deep learning emulator approach.
+%the stiffness of the ODEs, the computational cost of rate interpolations,
+%and the necessity of high-order, high-precision numerical schemes
+
+
+\subsection{BBN codes and cosmological model}
+\label{sec:bbn_codes}
+
+In this work, we use the public BBN codes
+\verb|PArthENoPE| v3.0 and \verb|AlterBBN| v2.2
+to generate training data for our emulator
+\cite{2022CoPhC.27108205G,2018arXiv180611095A}.
+To ensure a consistent implementation of nuclear physics,
+both codes are modified to use identical reaction rates for the following
+key reactions that strongly impact $Y_\mathrm{P}$ and $\mathrm{D/H}$:
+\begin{align}
+p + n &\leftrightarrow \gamma + {}^{2}\mathrm{H} & (\mathrm{PNG}) \notag \\
+{}^{2}\mathrm{H} + p &\leftrightarrow \gamma + {}^{3}\mathrm{He} & (\mathrm{DPG}) \notag \\
+{}^{2}\mathrm{H} + {}^{2}\mathrm{H} &\leftrightarrow n + {}^{3}\mathrm{He} & (\mathrm{DDN}) \notag \\
+{}^{2}\mathrm{H} + {}^{2}\mathrm{H} &\leftrightarrow p + {}^{3}\mathrm{H} & (\mathrm{DDP}) \notag
+\end{align}
+These processes dominate the synthesis of deuterium and ${}^4$He during BBN,
+contributing to most of the theoretical uncertainties on D/H and $Y_\mathrm{P}$
+\cite{2004JCAP...12..010S,2021JCAP...03..046Y}.
+We consider the theoretical PNG rate calculated in Ref.~\cite{2006PhRvC..74b5809A},
+which is adopted by \verb|AlterBBN|.
+For the other three reaction rates, we adopt the high-precision fits
+used by \verb|PArthENoPE| based on the compilation of experimental data
+in Ref.~\cite{2021JCAP...04..020P},
+which includes the recent LUNA results on the DPG rate \cite{2020Natur.587..210M}.
+
+
+The resulting primordial element abundances from BBN calculations
+depend on the cosmological model;
+they can be sensitive to parameters
+of both the standard $\Lambda$CDM model and extended scenarios.
+Regarding the former, both \verb|PArthENoPE| and \verb|AlterBBN| take as input
+the baryon-to-photon ratio, $\eta$, or $\eta_{10}\equiv\eta\times10^{10}$.
+%such as those including additional relativistic degrees of freedom or stiff fluids.
+%The \verb|PArthENoPE| code employs as primary inputs the physical baryon density $\Omega_\mathrm{b} h^2$, the baryon-to-photon ratio $\eta_{10}$, and parameters describing departures from the standard model, including the kination parameter $\kappa_\mathrm{10}$ and the variation in the effective number of neutrino species $\Delta N_\mathrm{eff}$~\cite{2008CoPhC.178..956P}. 
+It is equivalent to the cosmic baryon density, $\Omega_\mathrm{b}h^2$,
+according to \cite{2016RvMP...88a5004C}
+\begin{equation}\label{eq:eta_definition}
+    \eta_{10} = 273.3036\,\Omega_{\mathrm{b}}h^2
+    \left(1 + 7.16958\times10^{-3}\,Y_\mathrm{P}\right).
+\end{equation}
+%which follows from CMB temperature and recombination-era cosmology~\cite{2020A&A...641A...6P}.
+We apply this relationship to convert between $\Omega_\mathrm{b}h^2$
+and $\eta_{10}$ (or $\eta$) in our modifications of both BBN codes.
+
+For BSM scenarios, the extra relativistic degrees of freedom
+are parameterized by $\Delta N_\mathrm{eff}$ as usual, 
+while the standard effective number of relativistic species
+is $N^\mathrm{SM}_\mathrm{eff}=3.044$,
+accounting for the three neutrinos in the Standard Model (SM)
+\cite{2021JCAP...04..073B,2019JCAP...07..014G,2020JCAP...08..012A}.
+In addition, we consider a possible pre-BBN kination/stiff phase.
+The energy density of a stiff fluid redshifts as $a^{-6}$
+so that the universe transitions from the stiff phase
+to the radiation-dominated (RD) era at early times.
+Following Refs.~\cite{2010PhRvD..82h3501D,2025ApJ...985..117L},
+this stiff-to-radiation transition is parameterized
+by the ratio of the stiff-fluid energy density to the photon energy density
+at $T_\mathrm{10}\equiv 10$\,MeV,
+\begin{equation}
+    \kappa_{10} \equiv \left(\frac{\rho_\mathrm{s}}{\rho_\gamma}\right)_{T=10\,\mathrm{MeV}}\,.
+\label{eq:kappa10_definition}
+\end{equation}
+The impacts of a stiff phase on the primordial element abundances
+are previously examined by some of us
+in Refs.~\cite{2021JCAP...10..024L,2017PhRvD..96f3505L,2014PhRvD..89h3536L}.
+
+
+\begin{figure*}[t]
+  \centering
+  \subfloat[\label{fig:compare_al_pe_kappa}]{
+    \includegraphics[width=0.45\textwidth,height=0.6\textwidth,keepaspectratio=false,trim=4 4 4 4,clip]{compare_al_pe_kappa.pdf}%
+  }\hspace{0.05\columnwidth}
+  \subfloat[\label{fig:compare_al_pe_dnnu}]{    \includegraphics[width=0.45\textwidth,height=0.6\textwidth,keepaspectratio=false,trim=4 4 4 4,clip]{compare_al_pe_dnnu.pdf}%
+  }
+  \caption{\raggedright
+    Comparison of primordial abundance predictions from PArthENoPE (orange dashed lines with circle markers) and AlterBBN (red solid lines with square markers). 
+    Each panel contains two stacked subplots: the \textit{upper} axis shows $Y_\mathrm{P}$ and the \textit{lower} axis shows $\mathrm{D/H}$. Fig.~\ref{fig:compare_al_pe_kappa} displays the variation with $\kappa_{10} \!\equiv\! (\rho_\mathrm{s}/\rho_\gamma)_{T=10\,\mathrm{MeV}}$, while Fig.~\ref{fig:compare_al_pe_dnnu} shows the variation with the effective extra radiation parameter $\Delta N_\mathrm{eff}$. The gray shaded bands denote the $1\sigma$ observational constraints from Fields~\cite{Fields:2025}, namely 
+    $Y_\mathrm{P} = 0.245 \pm 0.003$ and $\mathrm{D/H} = (2.547 \pm 0.029) \times 10^{-5}$, with black dashed lines marking the corresponding central values.}
+  \label{fig:bbn_code_comparison}
+\end{figure*}
+
+
+
+In this work, we use $\Delta N_\mathrm{eff}$ and $\kappa_{10}$ as free parameters.
+Our modified \verb|PArthENoPE| takes them as input parameters directly.
+On the other hand, to adapt to the code structure of \verb|AlterBBN|,
+our modified version of of \verb|AlterBBN| describes the extra radiation and the stiff phase
+by equivalent input parameters $\kappa_{\mathrm{rad},\,i}$ and $\kappa_{\mathrm{s},\,i}$,
+respectively. They are defined as
+\begin{align}
+    \kappa_{\mathrm{rad},\,i} & \equiv \Delta N_\mathrm{eff}\cdot\frac{7}{8} \left(\frac{4}{11}\right)^{4/3} \left(\frac {T_\mathrm{CMB}}{T_i\,a_i}\right)^4,\label{eq:kapparad}\\
+    \kappa_{\mathrm{s},\,i} & \equiv \kappa_{10}\cdot\left(\frac{10\,\mathrm{MeV}}{T_i}\right)^4 \left(\frac{a_{10}}{a_i}\right)^6, \label{eq:dd0_definition}
+\end{align}
+where $T_i=27\times10^9\,$K is the initial temperature
+of \verb|AlterBBN| calculations \cite{2018arXiv180611095A},
+$T_\mathrm{CMB}=2.7255$\,K is the observed CMB temperature today \cite{2009ApJ...707..916F},
+$a_i$ and $a_{10}$ denote the scale factors at $T_i$ and $T_\mathrm{10}$, respectively.
+%\cite{2010PhRvD..82h3501D,2020A&A...641A...6P,2018PhR...754....1P}, respectively.
+These parameters measure the energy density ratios of each BSM component to photons
+at $T_i$ when \verb|AlterBBN| starts its integration.
+Eqs.~(\ref{eq:kapparad}) and (\ref{eq:dd0_definition})
+are used to convert between $(\Delta N_\mathrm{eff},\,\kappa_{10})$
+and $(\kappa_{\mathrm{rad},\,i},\,\kappa_{\mathrm{s},\,i})$ for \verb|AlterBBN|.
+
+
+In summary, we consider four free physical parameters,
+$\Omega_\mathrm{b} h^2$, $\tau_n$, $\Delta N_\mathrm{eff}$ and $\kappa_\mathrm{10}$.
+Their ranges are listed in Table~\ref{tab:priors}.
+The bounds on $\Omega_\mathrm{b} h^2$ and $\tau_n$ are chosen
+in accordance with their current measured values
+\cite{2020A&A...641A...6P,2021PhRvL.127p2501G}.
+The range of $\Delta N_\mathrm{eff}$ formally allows for negative values for completeness.
+Negative $\Delta N_\mathrm{eff}$ might happen in nonstandard scenarios, e.g.,
+in which the temperature of the SM neutrinos is lower than expected.
+
+%For each simulation, $\Omega_\mathrm{b} h^2$, $\kappa_\mathrm{10}$, $\Delta N_\mathrm{eff}$, and $\tau_n$ were either varied uniformly within the indicated ranges or fixed according to the adopted priors. 
+%These bounds encompass both the observationally allowed values and extended regions relevant for non-standard BBN scenarios, ensuring that the generated datasets span the full parameter space of interest.
+
+
+\begin{table}[h]
+\centering
+\caption{Free parameters of BBNet and their ranges.
+Eqs.~(\ref{eq:eta_definition}), (\ref{eq:kapparad}) and (\ref{eq:dd0_definition})
+are used to convert these parameters to the intrinsic input of PArthENoPE and AlterBBN
+when necessary.}
+\label{tab:priors}
+\begin{tabular}{l c}
+\toprule
+\textbf{Parameter} & \textbf{Range} \\
+\midrule
+$\Omega_\mathrm{b} h^2$ & $[0.005,\, 0.1]$ \\
+$\tau_n$ (s) & $[875.5,\, 884.5]$ \\
+$\Delta N_\mathrm{eff}$ & $[-1.0,\, 1.0]$ \\
+$\kappa_\mathrm{10}$ & $[0,\, 1000]$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+For illustration purposes, we present the dependences
+of the predicted $Y_\mathrm{P}$ and $\mathrm{D/H}$
+on $\kappa_{10}$ and $\Delta N_\mathrm{eff}$ in Fig.~\ref{fig:bbn_code_comparison}.
+The results are based on our modified BBN codes, \verb|PArthENoPE| and \verb|AlterBBN|. 
+The coincidence of the two curves in each panel
+shows that the two solvers yield nearly identical primordial abundances
+across the explored parameter ranges,
+demonstrating the consistency between our implementations of the same BSM physics
+in the two codes.
+
+
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=1.0\textwidth]{BBNNet.drawio.pdf}
+\caption{\raggedright
+\label{fig:architecture}
+Overview of the BBNet emulator and its training interface. 
+\textbf{Panel A:} Input-output schematics for the two baseline BBN solvers used to generate training data. Each solver takes as input the cosmological baryon density, $\Omega_\mathrm{b} h^2$, and the neutron lifetime, $\tau_n$, together with possible extensions beyond the standard model. For scenarios with a stiff-fluid component, this is parameterized by $\kappa_{10}$, defined as the ratio of stiff-fluid to photon energy densities at $T=10,\mathrm{MeV}$. Modifications to the relativistic sector are described either by an effective number of extra degrees of freedom, $\Delta N_\mathrm{eff}$, or by more general coefficients $\kappa_{\mathrm{rad},i}$ associated with specific relativistic contributions. The solvers then predict the primordial abundances of helium-4, $Y_\mathrm{P}$, and deuterium, $\mathrm{D/H}$, which serve as the primary observables for comparison with astrophysical data. \textbf{Panel B:} Neural network architecture of BBNet. 
+Inputs are projected by a linear layer with GELU activation, followed by a multi-head self-attention (MHSA) module. 
+Since each sample is a single feature vector, the MHSA acts as a multi-head linear reparameterization that improves optimization and balancing physical parameters. 
+The output is passed through $N$ residual MLP blocks (Linear–GELU–Dropout) and a final linear projection to predict $(Y_\mathrm{P}, \mathrm{D/H})$.
+}
+\end{figure*}
+
+\section{Methodology: Data Generation and Emulator Design}
+\label{sec:methodology}
+
+Our neural network emulator, \verb|BBNet|, is trained on the input parameters
+and the output data of our modified BBN codes described above.
+The current version of \verb|BBNet| predicts only
+the well-measured $Y_\mathrm{P}$ and D/H,
+to be ready for the next-stage likelihood analysis.
+However, it can be easily generalized to predict the primordial abundances
+of other light elements from first-principles BBN calculations.
+
+%focuses on predicting two primary abundances: Helium-4 ($Y_\mathrm{P}$) and Deuterium ($\mathrm{D/H}$).
+%These two elements were selected due to their important roles in determining the cosmic baryon-to-photon ratio and their relatively strong observational constraints in BBN studies. %For other primordial abundances, such as those of CNO elements, also provide valuable information, $Y_\mathrm{P}$ and $\mathrm{D/H}$ offer the most direct and precise constraints on the baryon density in the early universe. Their observational values and sensitivities to cosmological parameters make them suitable for testing and validating our emulator.
+
+In this section, we describe our methodology for constructing \verb|BBNet|,
+including a comprehensive strategy for data generation
+and a customized design of the neural network architecture.
+%and robust training procedures.
+Our method can also be applied to emulate other generic BBN codes.
+
+
+\subsection{Data generation strategy}
+\label{sec:data_generation_strategy}
+
+We generate separate training and validation data sets
+using each of the two BBN codes, \verb|PArthENoPE| and \verb|AlterBBN|.
+They are treated as the ground truth for our neural networks.
+We sample the four physical parameters listed in Table~\ref{tab:priors},
+assuming uniform priors on $\Omega_\mathrm{b}h^2$, $\Delta N_{\rm eff}$ and $\tau_n$,
+and a log-uniform prior on $\kappa_{10}$ \footnote{In this work,
+we adopt $\log_{10}\kappa_{10}\in[-7,\,3]$ with a uniform prior.}.
+To ensure uniform sampling in the multidimensional parameter space,
+we use the Latin hypercube sampling method \cite{Stein1987,Tang1993}.
+The parameters are subsequently converted to the intrinsic input
+of \verb|PArthENoPE| and \verb|AlterBBN| when necessary,
+using Eqs.~(\ref{eq:eta_definition}), (\ref{eq:kapparad}) and (\ref{eq:dd0_definition}).
+The data generation pipeline is illustrated in Fig.~\ref{fig:architecture}A.
+
+%For a uniform prior on $[x_{\min},x_{\max}]$ with $N$ samples,
+%a convenient LHS construction is given by
+%\begin{equation}
+%  x_i \;=\; x_{\min} + \frac{\pi(i)-u_i}{N}\,\bigl(x_{\max}-x_{\min}\bigr), 
+%  \quad u_i\sim\mathcal{U}(0,1),\quad \pi\in S_N,
+%  \label{eq:lhs_formula}
+%\end{equation}
+%where $\pi$ is a random permutation. This stratifies each one–dimensional marginal while promoting good multi–dimensional dispersion.\cite{McKay1979,Stein1987,Tang1993}
+
+All BBN computations are performed on Intel Xeon Gold CPUs.
+%with an aggregate runtime cost of $\sim 100$ CPU--hours per code.
+For \verb|PArthENoPE|, we adopt its ``complete'' nuclear reaction network
+(26 nuclides, 100 reactions) to generate the data set \cite{2008CoPhC.178..956P},
+%Inputs of \verb|PArthENoPE| are $(\kappa_{10},\,\Delta N_{\rm eff},\,\tau_n,\,\eta_{10})$, with $\eta_{10}$ given by Eq.~(\ref{eq:eta_definition}), as derived from $\Omega_{\mathrm{b}}h^2$ in Sec.~\ref{sec:bbn_codes}.
+which costs $\sim 20-30\,$s (wall time, hardware–dependent) for a single run.
+%For \verb|AlterBBN|, we generate data by sampling the input parameters 
+%$(\Omega_{\mathrm{b}}h^2,\,\Delta N_{\rm eff},\,\kappa_{10})$. 
+%Internally, the code translates these into the corresponding stiff-fluid and dark-radiation densities ($\kappa_{\mathrm{s},i}$ and $\kappa_{\mathrm{rad},i}$, defined at the initial integration step), and 
+For \verb|AlterBBN|, we choose an ODE solver
+based on the second-order Runge-Kutta algorithm with half step test
+(setting ``failsafe=7'' in \verb|AlterBBN|; see \cite{2018arXiv180611095A}),
+dubbed ``RK2\_halfstep'' throughout the paper.
+This algorithm results in an average wall time per run of $\gtrsim 15$\,s.
+The final data set contains 20,000 samples for each BBN code.
+Note that the distributions of the two data sets are different from each other,
+because a considerable part of the parameter space
+(specified by Table~\ref{tab:priors}) is not accepted by \verb|PArthENoPE| as input,
+while \verb|AlterBBN| accepts all combinations
+of the parameters within their prior ranges.
+For both data sets, we adopt the standard $8:1:1$ split
+to obtain training, validation, and test data.
+%$8{,}000$ training, $1{,}000$ validation, and $1{,}000$ test data points.
+
+
+%To ensure a sufficient yield of valid outputs, we introduced an adaptive resampling scheme. During the \verb|PArthENoPE| runs, certain input combinations within the prior ranges frequently caused integration failures, producing empty outputs due to the stiffness of the ODE system. To address this, we implemented a simple rule: whenever 100 consecutive draws failed, the prior bounds on $(\Omega_{\mathrm{b}}h^2,\,\kappa_{10})$ were reduced and sampling resumed within the shrunken range. After a few shrink steps, the yield stabilized at roughly 25--30 valid outputs per 100 input draws. 
+
+
+
+
+\subsection{Neural network architecture and data processing}
+\label{sec:nn_architecture}
+
+%After generating the benchmark datasets,
+%we developed the \verb|BBNet| neural network architecture.
+\verb|BBNet| is designed to ingest the four-dimensional vector
+of $(\Omega_\mathrm{b}h^2,\,\tau_n,\,\Delta N_{\rm eff},\,\kappa_{10})$
+and output the primordial element abundances, $(Y_\mathrm{P},\,\mathrm{D/H})$.
+%comprising the four primary sampled cosmological parameters. %Specifically, for \verb|PArthENoPE| v3.0 dataset, the input vector includes $\eta_{10}$ (derived from $\Omega_\mathrm{b} h^2$), $\kappa_\mathrm{10}$, $\Delta N_\mathrm{eff}$, and $\tau_n$, totaling 7 dimensions with the explicit inclusion of $\kappa_\mathrm{10}$. For \verb|AlterBBN| dataset, the network uses $\Omega_\mathrm{b} h^2$, $\tau_n$, and the internally derived $\kappa_\mathrm{s,\,i}$ and $\kappa_\mathrm{rad,\,i}$ (which depend on $\kappa_{10}$ and $\Delta N_\mathrm{eff}$). 
+%The input vector composition is therefore carefully chosen to represent the critical physical parameters for each code, ensuring effective learning.
+%They form the training set of the neural network,
+Its overall neural network architecture is illustrated in Fig.~\ref{fig:architecture}B.
+All input and output variables are transformed and standardized
+to have zero mean and unit variance before training,
+indicated by the preprocessing and postprocessing modules.
+%by subtracting the mean and dividing by the standard deviation from the training set, ensuring zero-mean and unit-variance features.
+%This pipeline enhances model robustness in low-value regions, 
+%They effectively mitigate the influence of extremely small noises
+%and stabilize the training process. 
+These data projection techniques help \verb|BBNet|
+learn patterns in the dependence of output on input with balanced weights,
+hence achieving a more efficient training process
+and increasing the accuracy of the resultant model.
+%and generalize effectively across diverse datasets.
+
+
+
+%For $\kappa_\mathrm{s,\,i}$ (derived from $\kappa_\mathrm{10}$) and $\kappa_\mathrm{10}$ itself, as well as for the Deuterium abundance ($\mathrm{D/H}$), transformations are applied to manage their wide dynamic ranges and mitigate issues with values near zero.
+
+%For parameters related to kination, specifically $\kappa_\mathrm{10}$ and its derived form $\kappa_\mathrm{s,\,i}$, a logarithmic transformation is applied before scaling:
+%\begin{equation}
+%\log(\text{param}) = \log_{10}(\max(\text{param}, \epsilon)),
+%\end{equation}
+%where $\epsilon = 1 \times 10^{-10}$ is a small additive constant to circumvent taking the logarithm of zero. Following this transformation, these parameters are normalized using a Min-Max scaler to ensure they lie within a consistent range, preventing extreme values from dominating training.
+
+%Similarly, for the $\mathrm{D/H}$ abundance, which can also span several orders of magnitude and approach zero, a logarithmic transformation is applied:
+%\begin{equation}
+%\log(\mathrm{D/H}) = \log_{10}(\max(\mathrm{D/H}, \epsilon)),
+%\end{equation}
+%using the same $\epsilon = 1 \times 10^{-10}$ for numerical stability. A Box-Cox transformation is then applied to stabilize the deuterium abundance distribution, followed by Min--Max rescaling to the interval $[0,0.01]$, and finally a standardization step. 
+
+As shown in Fig.~\ref{fig:architecture}B,
+the preprocessed input data are reshaped into 4096-dimensional vectors
+via a linear projection.
+They are then passed through a Gaussian Error Linear Unit (GeLU)
+activation function \cite{Hendrycks2016}.
+These two layers can be expressed together as
+\begin{equation}
+    h_{0} = \mathrm{GeLU}(W_{\mathrm{lin}} X_{\mathrm{scaled}} + b_{\mathrm{lin}}),
+\end{equation}
+where $W_{\mathrm{lin}}$ and $b_{\mathrm{lin}}$
+are learnable weights and bias parameters in the linear projection layer.
+
+We employ a multi-head self-attention (MHSA) module
+to further reparameterize the data \cite{Vaswani2017}.
+%Since each training sample corresponds to a single feature vector rather than a sequence,
+%the attention block reduces to a structured multihead linear reparameterization
+%rather than a full token-to-token self-attention block.
+%Even in this degenerate setting, the reparameterization
+%improves the optimization
+%and serves as a flexible gating mechanism across input channels,
+%gaining better empirical performance.
+The MHSA module can dynamically rescale
+the relative contributions of the physical parameters. 
+We use eight attention heads, with the MHSA operation defined as
+\begin{equation}
+    \mathrm{MHSA}(h_{0}) = \mathrm{Concat}(\mathrm{head}_1, \dots, \mathrm{head}_8)\,W_{O},
+\end{equation}
+where each head is computed as
+\begin{equation}
+    \mathrm{head}_i = \mathrm{softmax}\!\left(\frac{Q_i K_i^\top}{\sqrt{d_k}}\right)V_i.
+\end{equation}
+Here $Q_i$, $K_i$, and $V_i$ denote the linear projections learned from the input $h_{0}$, and $d_k$ is the key dimension, 
+included as a scaling factor to stabilize the softmax layer \cite{Vaswani2017}.
+The MHSA module is implemented with a residual connection:
+\begin{align}
+    h_{1} = h_{0} + \mathrm{MHSA}\!\left(h_{0}\right).
+\end{align}
+We then take $h_{1}$ to initialize
+the residual multilayer perceptron (MLP) stack with $N$ blocks, expressed as:
+\begin{equation}
+    h_{t+1} \;=\; h_{t} \;+\;
+    \mathrm{Dropout}\,\Big(\mathrm{GELU}\big(h_{t+1} W_t + \mathbf{b}_t\big)\Big),
+\end{equation}
+where $W_t$ and $\mathbf{b}_t$ are the learnable parameters of the $t$-th MLP block,
+$t=1,\dots,N$.
+A dropout rate of $0.3$ is used to regularize training and mitigate overfitting
+\cite{Srivastava2014}.
+%by randomly setting a fraction of input units to zero during training.
+%The skip connection ($h_j$) helps preserve gradient flow
+%and alleviate vanishing gradient problems in deep networks.
+
+Finally, another linear projection layer transforms the 4096-dimensional data vectors
+to the predicted abundances $(Y_\mathrm{P},\,\mathrm{D/H})$,
+up to a postprocessing step.
+%Given the large dynamic ranges of these primordial abundances, predictions for isotopes with naturally large abundance variations are performed in logarithmic space.
+%These logarithmic predictions are subsequently exponentiated during post-processing to yield the final abundances in linear scale, thereby ensuring numerical precision and preventing issues with vanishing gradients for very small values.
+
+
+\section{BBNet Training and Validation}
+\label{sec:training}
+
+This section details the training strategy of \verb|BBNet|,
+which is proven to be successful and stable
+on both data sets (generated by \verb|PathENoPE| and \verb|AlterBBN|).
+Our techniques here can be generalized to train emulators for other BBN codes.
+%focused on achieving both low prediction error
+%and effective generalization across the relevant cosmological parameter space,
+%using datasets derived from both \verb|AlterBBN| and \verb|PArthENoPE| calculations. 
+%which is designed to ensure model stability,
+%scalability, and high representational quality for both data sources.
+
+\subsection{Optimizer and scheduler}
+\label{sec:optimization}
+
+The \verb|BBNet| model is trained using the AdamW optimizer.
+It combines the adaptive learning rate advantages
+of the Adam optimizer with decoupled weight decay
+\cite{KingmaBa2015Adam,Loshchilov2019}.
+%which has been shown to enhance convergence speed and generalization performance,
+%particularly beneficial for scientific applications involving complex parameter spaces.
+For both data sets, the initial learning rate is set to $5 \times 10^{-5}$,
+with a weight decay parameter $\lambda_W = 10^{-5}$.
+To avoid exploding gradients,
+we apply gradient clipping with a maximum norm threshold of 1.0.
+%a common issue in deep neural networks, 
+
+We adopt a batch size of 16 for each iteration of the training processes.
+This batch size balances computational costs (GPU memory) and model complexity.
+We employ a scheduler that reduces the learning rate by a factor of 0.5
+whenever the validation loss stops improving for 10 consecutive epochs.
+%The learning rate is adapted in a performance-driven manner, being reduced by a constant factor whenever the validation metric ceases to improve for a preset number of epochs
+This strategy promotes rapid initial convergence
+and allows for finer parameter adjustments once the model begins to plateau.
+
+
+\subsection{Regularization}
+\label{sec:regularization}
+
+During training and validation, we apply several regularization techniques
+to mitigate overfitting and improve the generalizability of the model to unseen data.
+Dropout is implemented by randomly setting a fraction of activations to zero.
+It discourages complex coadaptations between neurons,
+so that the model is inclined to learn more robust features.
+Weight decay is integrated through the AdamW optimizer, as mentioned above.
+This operation further enhances the stability of the model
+by suppressing large weights and favoring simpler representations.
+
+We use the standard mean absolute error (MAE) for the loss function.
+We also include a regularization term
+that enforces the local stability of model predictions
+under small perturbations of the input parameters.
+It penalizes the differences between the model outputs
+at $\mathbf{x}$ and $\mathbf{x}{+}\boldsymbol{\epsilon}$
+(here $\boldsymbol{\epsilon}$ denotes a Gaussian perturbation),
+expressed as follows:
+\begin{equation}
+  \mathcal{L}_{\mathrm{smooth}}
+  = \mathbb{E}_{\boldsymbol{\epsilon}\sim\mathcal{N}(\mathbf{0},\,\sigma^{2}\mathbf{I})}
+  \,\left\|
+    f(\mathbf{x}{+}\boldsymbol{\epsilon})
+    - f(\mathbf{x})
+  \right\|_{2}^{2},
+\end{equation}
+where $\|\cdot\|_{2}$ is the Euclidean norm of the output vector
+and $\sigma=0.02$ is fixed in all reported experiments.
+This term suppresses fluctuations in the learned mapping,
+guaranteeing smooth responses to input parameters.
+
+%computed exclusively in the \emph{physical domain}
+%(after reversing all preprocessing, including $\log_{10}$ transformation
+%and exponentiation):
+In addition, we introduce another degree of regularization
+in terms of the following symmetric mean absolute percentage error (sMAPE)
+concerning the deuterium abundance:
+\begin{equation}
+  \mathcal{L}_{\mathrm{sMAPE}}
+  = \frac{1}{N}\sum_{i=1}^{N}
+  \frac{2\,\big|\hat{y}^{(\mathrm{raw})}_{\mathrm{D/H},i}
+                - y^{(\mathrm{raw})}_{\mathrm{D/H},i}\big|}
+       {\big|\hat{y}^{(\mathrm{raw})}_{\mathrm{D/H},i}\big|
+        + \big|y^{(\mathrm{raw})}_{\mathrm{D/H},i}\big|}.
+\end{equation}
+This term helps the model achieve the desired accuracy
+in the predicted values of D/H, 
+which span many orders of magnitude in our data sets.
+%Unlike the standardized mean absolute error (MAE) computed in normalized space, this term is bounded, symmetric, and invariant to absolute scale, making it particularly suitable for D/H’s wide dynamic range.
+
+
+\begin{figure}[t]
+  \centering
+  \subfloat[PArthENoPE\label{fig:train_val_loss_parthenope}]{%
+    \includegraphics[width=0.48\columnwidth]{loss_curve_pe.pdf}
+  }
+  \hfill
+  \subfloat[AlterBBN\label{fig:train_val_loss_alterbbn}]{%
+    \includegraphics[width=0.48\columnwidth]{loss_curve_al.pdf}
+  }
+  \caption{\raggedright
+  \label{fig:train_val_loss_combined}
+  Training (blue) and validation (orange) loss curves for the BBNet emulator, trained on full-network outputs from PArthENoPE ~\ref{fig:train_val_loss_parthenope} and AlterBBN ~\ref{fig:train_val_loss_alterbbn}. The loss is defined as the mean absolute error (MAE) between predicted and true values of $(Y_\mathrm{P}, \mathrm{D/H})$. The dashed horizontal line in each plot indicates zero error, providing a reference to evaluate convergence. Both training and validation losses decrease rapidly and stabilize within 300 epochs, reaching values close to zero without signs of overfitting.}
+\end{figure}
+
+
+\subsection{Training and validation loss}
+\label{sec:validation}
+
+The total objective function combines the MAE loss
+(weighted between $Y_\mathrm{P}$ and $\mathrm{D/H}$)
+and the two regularization terms described above.
+%the physical-domain percentage penalty, and the smoothness regularization:
+It is formally written as
+\begin{equation}
+  \mathcal{L}_{\mathrm{total}}
+  = \mathcal{L}_{\mathrm{MAE}}
+  + \lambda_{\mathrm{smooth}}\,\mathcal{L}_{\mathrm{smooth}}
+  + \lambda_{\mathrm{D/H}}\,\mathcal{L}_{\mathrm{sMAPE}},
+\end{equation}
+%where $\mathcal{L}_{\mathrm{base}}$ denotes the weighted MAE in standardized space
+where $\lambda_{\mathrm{smooth}}$ and $\lambda_{\mathrm{D/H}}$ are hyperparameters.
+We set $\lambda_{\mathrm{smooth}}=0.1$ and $\lambda_\mathrm{D/H}=50$.
+%controls the contribution of the physical-domain correction.
+
+%on a held-out vali set,
+%comprising 10\% of the total data set.
+%to quantify the prediction accuracy
+%for both the $Y_\mathrm{P}$ and $\mathrm{D/H}$ outputs.
+The loss curves for training and validation are presented
+in Fig.~\ref{fig:train_val_loss_combined} for both \verb|BBNet| models.
+The convergence of the two training processes
+confirms the stability of the neural network models
+and the generalizability of our framework.
+%This figure shows the evolution of both training and validation losses
+%over epochs for both the \verb|AlterBBN|-derived and \verb|PArthENoPE|-derived training processes. 
+The closeness of the training and validation curves for both data sets
+demonstrates that our \verb|BBNet| models have achieved optimal complexity.
+%are indicative of effective regularization,
+%demonstrating a minimal gap between them and confirming the absence of overfitting.
+%补充一下测试实验，kappa=0-》1e-12，会有多大误差
+
+
+
+\section{Results}
+\label{sec:results}
+
+%We perform a twofold evaluation for the resultant \verb|BBNet| emulator. In \S\ref{sec:accuracy_comparison}, we benchmark the accuracy of \verb|BBNet| predictions against the ground truth values and the current observational constraints on $Y_\mathrm{P}$ and $\mathrm{D/H}$. We also exhibit the substantial speed-up between emulations and first-principles calculations. \ref{app:parameter_dependence} then investigate the dependence of the \verb|BBNet|-predicted primordial abundances on the cosmological parameters across relevant ranges, demonstrating the ability of our emulator to perfectly recover the results of the BBN codes.
+
+We perform a comprehensive twofold evaluation of the trained \verb|BBNet| emulators
+to verify both its predictive accuracy and computational efficiency.
+In \S\ref{sec:accuracy_comparison}, we quantitatively benchmark
+the emulator predictions against the ground-truth outputs of the underlying BBN codes.
+We also compare them with the current observational constraints
+on $Y_\mathrm{P}$ and $\mathrm{D/H}$.
+Subsequently, \S\ref{app:parameter_dependence} explores
+the dependence of the predicted primordial abundances
+on the physical parameters over their most relevant ranges.
+
+
+\begin{figure}[h]
+  \centering
+  \subfloat[PArthENoPE\label{fig:accuracy_pe}]{%
+    \includegraphics[width=0.9\columnwidth]{pe_scatter.pdf}
+  }
+  \vspace{0.5em}
+  \subfloat[AlterBBN\label{fig:accuracy_alterbbn}]{%
+    \includegraphics[width=0.9\columnwidth]{al_scatter.pdf}
+  }
+  \caption{\raggedright
+    Emulator prediction accuracy compared to two BBN solvers. Each panel compares BBNet's predicted values (vertical axis) to reference solver outputs (horizontal axis) on a test dataset. \textbf{(a)}~Results based on PArthENoPE, using its full nuclear reaction network; \textbf{(b)}~Results based on AlterBBN with RK2\_halfstep integrator. In each subpanel (left: $Y_\mathrm{P}$, right: $\mathrm{D/H}$), blue scatter points indicate individual test samples, where the emulator's output is plotted against the solver's ground truth. The dashed black diagonal line represents the ideal relation $\hat{y} = y$, meaning perfect agreement.
+    }
+  \label{fig:bbnet_accuracy_combined}
+\end{figure}
+
+\subsection{Emulation accuracy and efficiency}
+\label{sec:accuracy_comparison}
+
+We first assess the performance of \verb|BBNet|
+by its accuracy in reproducing the results of BBN calculations.
+For both test sets generated by \verb|PArthENoPE| and \verb|AlterBBN|,
+the \verb|BBNet| emulator accurately reproduces
+the true values of $Y_\mathrm{P}$ and $\mathrm{D/H}$,
+as illustrated in Fig.~\ref{fig:bbnet_accuracy_combined}.
+The close agreement between predictions and ground-truth values
+demonstrates that the \verb|BBNet| framework is not confined
+to the internal implementation of any single BBN solver.
+Instead, it effectively learns the underlying functional dependence
+between the physical parameters and primordial light element abundances.
+
+
+To further quantify this agreement, we evaluate two complementary regression metrics
+that characterize both the magnitude and the direction of residual errors.
+First, the mean percentage error (MPE) measures the average signed relative difference
+between the predicted and the true abundances, defined as
+\begin{equation}
+    \mathrm{MPE}
+    = \frac{1}{N}\sum_{i=1}^{N}\frac{\hat{y}_i - y_i}{y_i} \times 100\%.
+\end{equation}
+We also consider the root mean square percentage error (RMSPE)
+that describes the absolute magnitude of relative errors as follows:
+\begin{equation}
+    \mathrm{RMSPE}
+    = \sqrt{\frac{1}{N}\sum_{i=1}^{N}
+    \left(\frac{\hat{y}_i - y_i}{y_i}\times100\% \right)^{2}}.
+\end{equation}
+%These percentage-based metrics are particularly useful for detecting small yet systematic over- or underpredictions, as they retain the direction of deviations while remaining scale-invariant.
+
+Regarding observational constraints on the primordial abundances,
+we adopt the values reported by
+the most recent Review of Particle Physics~(2025) as the benchmark here
+\cite{Fields:2025},
+\begin{IEEEeqnarray}{rCl}\label{eq:obs_constraints}
+    Y_\mathrm{P} & = & 0.245 \pm 0.003,\nonumber\\
+    \mathrm{D/H} & = & (2.547 \pm 0.029)\times 10^{-5}.
+\end{IEEEeqnarray}
+These values were compiled from a group of astronomical measurements,
+e.g., Refs.~\cite{2021JCAP...03..027A,2019ApJ...876...98V,2019MNRAS.487.3221F,2020ApJ...896...77H,2021MNRAS.505.3624V,2022MNRAS.510..373A,2021MNRAS.502.3045K} for $Y_\mathrm{P}$
+and Refs.~\cite{2014ApJ...781...31C,2016ApJ...830..148C,2015MNRAS.447.2925R,2016MNRAS.458.2188B,2017MNRAS.468.3239R,2018JPhCS1038a2012Z,2018ApJ...855..102C} for $\mathrm{D/H}$.
+%define the physical range within which any model must remain to be consistent with current cosmological observations.
+
+We summarize the quantitative results of emulator performance
+in Table~\ref{tab:bbnet_comparison} using the metrics defined above.
+Both the RMSPE and the MPE values are far below
+the observational uncertainties—by more than four orders of magnitude
+for $Y_\mathrm{P}$—demonstrating that \verb|BBNet| accurately reproduces
+the theoretical values of $Y_\mathrm{P}$ and $\mathrm{D/H}$ with negligible errors.
+\verb|BBNet| is therefore a fully competent alternative to BBN codes
+for parameter inference tasks.
+%nearly all of the physical variance contained in the reference BBN calculations.
+
+\begin{table}[ht]
+\caption{\raggedright Comparison of RMSPE, MAPE, and MPE (\%) for \textsc{BBNet} trained on two solvers, evaluated against their respective ground truths.}
+\label{tab:bbnet_comparison}
+\begin{ruledtabular}
+\begin{tabular}{lccc}
+\textbf{Abundance} & \textbf{RMSPE (\%)} & \textbf{MAPE (\%)} & \textbf{MPE (\%)} \\
+\hline
+\multicolumn{4}{l}{\textit{PArthENoPE}}\\
+$Y_\mathrm{P}$      & 0.0158 & 0.0064 & $-0.0011$ \\
+$\mathrm{D/H}$      & 0.0503 & 0.0331 & $0.0013$ \\
+\multicolumn{4}{l}{\textit{AlterBBN}}\\
+$Y_\mathrm{P}$      & 0.0175 & 0.0055 & $-0.0014$ \\
+$\mathrm{D/H}$      & 0.0799 & 0.0455 & $0.0002$ \\
+\end{tabular}
+\end{ruledtabular}
+\end{table}
+
+
+In addition to the accuracy of model predictions, computational efficiency
+is equally critical for applications that require large-scale evaluations.
+Fig.~\ref{fig:inference_time_comparison} compares
+the latency (wall time) per execution between different methods.
+On both CPUs and GPUs, \verb|BBNet| achieves an average speed-up
+of several orders of magnitude relative to traditional ODE-based solvers.
+This dramatic acceleration enables real-time parameter estimation using MCMC sampling,
+where millions of abundance evaluations are typically required.
+
+\begin{figure}[t]
+  \centering
+  \subfloat[PArthENoPE\label{fig:time_parthenope}]{%
+    \includegraphics[width=0.47\textwidth,keepaspectratio]{time_pe_bbnet.pdf}
+  }
+  \hfill
+  \subfloat[AlterBBN\label{fig:time_alterbbn}]{%
+    \includegraphics[width=0.47\textwidth,keepaspectratio]{time_alterbbn_bbn.pdf}
+  }
+  \caption{\raggedright
+  Single-sample inference times were measured over 100 evaluations for each method. In both panels, blue lines indicate the runtime of the baseline BBN solvers: the full-network PArthENoPE ~\ref{fig:time_parthenope} and AlterBBN ~\ref{fig:time_alterbbn} using the RK2\_halfstep integrator. The orange and green lines show the corresponding inference times for the BBNet emulator executed on CPU and GPU, respectively. The emulator achieves $\sim 10^3\text{--}10^4$ speedup across both implementations, with sub-millisecond evaluation time on GPU and minimal overhead on CPU}
+  \label{fig:inference_time_comparison}
+\end{figure}
+
+\begin{figure*}[ht]
+  \centering
+  \newlength{\panelw}\setlength{\panelw}{0.24\textwidth}
+  \newlength{\panelh}\setlength{\panelh}{6cm}
+  \subfloat[\label{fig:dependence_kappa_pe}]{%
+    \begin{minipage}[t][\panelh][c]{\panelw}
+      \centering
+      \includegraphics[height=\panelh,keepaspectratio]{compare_pe_bbnet_kappa.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:dependence_dnnu_pe}]{%
+    \begin{minipage}[t][\panelh][c]{\panelw}
+      \centering
+      \includegraphics[height=\panelh,keepaspectratio]{compare_pe_bbnet_dnnu.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:dependence_omega_pe}]{%
+    \begin{minipage}[t][\panelh][c]{\panelw}
+      \centering
+      \includegraphics[height=\panelh,keepaspectratio]{compare_pe_bbnet_omega.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:dependence_tau_pe}]{%
+    \begin{minipage}[t][\panelh][c]{\panelw}
+      \centering
+      \includegraphics[height=\panelh,keepaspectratio]{compare_pe_bbnet_tau.pdf}
+    \end{minipage}
+  }
+  \caption{\raggedright
+    Parameter dependence of the primordial helium mass fraction $Y_\mathrm{P}$ on the top axes and of the deuterium-to-hydrogen number ratio $\mathrm{D/H}$ on the bottom axes. Predictions from PArthENoPE are shown as solid curves with circle markers, orange in the online version; the BBNet emulator appears as dashed curves with circle markers, green in the online version. Fig.~\ref{fig:dependence_kappa_pe} varies the stiff-fluid parameter $\kappa_{10}$, defined by $\kappa_{10}\equiv\left.\rho_\mathrm{s}/\rho_\gamma\right|_{T=10\,\mathrm{MeV}}$. Fig.~\ref{fig:dependence_dnnu_pe} varies $\Delta N_\mathrm{eff}$. Fig.~\ref{fig:dependence_omega_pe} varies the baryon density $\Omega_\mathrm{b} h^2$. Fig.~\ref{fig:dependence_tau_pe} varies the neutron lifetime $\tau_n$. In each case, all other cosmological and nuclear inputs are fixed to the fiducial values. Gray shaded bands show the one-sigma observational intervals adopted from Ref.~\cite{Fields:2025}: $Y_\mathrm{P}=0.245\pm0.003$ and $\mathrm{D/H}=2.547\times10^{-5}\pm0.029\times10^{-5}$. These bands are horizontal, with vertical extent equal to the quoted uncertainty, and are identical across panels that share the same ordinate. Black dashed lines indicate the corresponding central values.}
+    \label{fig:appendix_dependence_parthenope}
+\end{figure*}
+
+
+\subsection{Dependence of primordial abundances on physical parameters}
+\label{app:parameter_dependence}
+
+Here we demonstrate the accuracy of \verb|BBNet| emulations from another perspective,
+the dependence of $Y_\mathrm{P}$ and $\mathrm{D/H}$ on the physical parameters.
+Using the test sets in both cases (\verb|PArthENoPE| and \verb|AlterBBN|),
+we compare the predicted element abundances
+with those obtained by the BBN calculations.
+%Four input parameters are considered: the baryon density $\Omega_\mathrm{b}h^2$, the effective number of relativistic species $\Delta N_\mathrm{eff}$, the neutron lifetime $\tau_n$, and the modified expansion factor $\kappa_{10}$.
+As illustrated in Figs.~\ref{fig:appendix_dependence_parthenope}
+and \ref{fig:appendix_dependence_alterbbn}, each parameter is individually varied
+while the others are fixed at their fiducial values:
+$\kappa_{10}=0.0$, $\Delta N_\mathrm{eff}=0.0$,
+$\Omega_\mathrm{b} h^2=0.02237$ \cite{2020A&A...641A...6P},
+and $\tau_n=879.4\,\mathrm{s}$ \cite{Fields:2025}.
+Our results show a perfect agreement
+between the first-principles computations and the neural network emulations
+over large variations in the values of parameters.
+
+In this work, $\kappa_{10}$ and $\Delta N_\mathrm{eff}$
+are the parameters that describe BSM physics.
+Their relationships with the primordial element abundances
+shown in Figs.~\ref{fig:appendix_dependence_parthenope}
+and \ref{fig:appendix_dependence_alterbbn}
+are essentially the same as those shown in Fig.~\ref{fig:bbn_code_comparison}.
+%For \verb|PArthENoPE|, Fig.~\ref{fig:appendix_dependence_parthenope} shows the main parameter dependencies of the primordial abundances. 
+In particular, $Y_\mathrm{P}$ increases monotonically with $\kappa_{10}$
+and is highly sensitive to it, whereas the corresponding dependence
+of $\mathrm{D/H}$ on $\kappa_{10}$ is comparatively weak.
+By contrast, $\Delta N_\mathrm{eff}$ strongly influences both abundances
+with a monotonically increasing trend.
+%As shown in Fig.~\ref{fig:dependence_omega_pe}, 
+As for the SM sector, changes in the baryon density, $\Omega_\mathrm{b} h^2$,
+induce negligible changes in $Y_\mathrm{P}$
+but a significant, monitonically decreasing effect on $\mathrm{D/H}$.
+Variations in the neutron lifetime, however, have small impacts
+on both $Y_\mathrm{P}$ and $\mathrm{D/H}$ with slightly increasing trends.
+
+%The analysis based on \verb|AlterBBN|, shown in Fig.~\ref{fig:appendix_dependence_alterbbn}, exhibits the same qualitative trends. An increase in $\Omega_\mathrm{b} h^2$ results in a slight rise in $Y_\mathrm{P}$ and a pronounced reduction in $\mathrm{D/H}$.
+%The response to $\Delta N_\mathrm{eff}$ closely follows that obtained with \verb|PArthENoPE|, confirming the robustness of this dependence.
+%Variations in the neutron lifetime $\tau_n$ cause moderate changes in $\mathrm{D/H}$ but have little effect on $Y_\mathrm{P}$, whereas $\kappa_{10}$ influences both abundances only weakly.
+
+\begin{figure*}[ht]
+  \centering
+  \newlength{\panelwB}\setlength{\panelwB}{0.24\textwidth}
+  \newlength{\panelhB}\setlength{\panelhB}{6cm}
+
+  \subfloat[\label{fig:sens:kappa_pe}]{%
+    \begin{minipage}[t][\panelhB][c]{\panelwB}
+      \centering
+      \includegraphics[height=\panelhB,keepaspectratio]{compare_al_bbnet_kappa.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:sens:dNnu_pe}]{%
+    \begin{minipage}[t][\panelhB][c]{\panelwB}
+      \centering
+      \includegraphics[height=\panelhB,keepaspectratio]{compare_al_bbnet_dnnu.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:sens:omega_pe}]{%
+    \begin{minipage}[t][\panelhB][c]{\panelwB}
+      \centering
+      \includegraphics[height=\panelhB,keepaspectratio]{compare_al_bbnet_omega.pdf}
+    \end{minipage}
+  }\hfill
+  \subfloat[\label{fig:sens:tau_pe}]{%
+    \begin{minipage}[t][\panelhB][c]{\panelwB}
+      \centering
+      \includegraphics[height=\panelhB,keepaspectratio]{compare_al_bbnet_tau.pdf}
+    \end{minipage}
+  }
+  \caption{\raggedright
+    Parameter dependence of $Y_\mathrm{P}$ in the top panels and $\mathrm{D/H}$ in the bottom panels, computed with AlterBBN and reproduced by the BBNet emulator. One input parameter is varied per panel; all remaining inputs are fixed to the fiducial values listed in Table~X. Plotting conventions match Fig.~\ref{fig:appendix_dependence_parthenope}: solver curves are solid with circle markers; emulator curves are dashed with triangle markers. Horizontal gray bands show the one-sigma observational intervals adopted from Ref.~\cite{Fields:2025}; black dashed lines mark the corresponding central values.}
+    \label{fig:appendix_dependence_alterbbn}
+\end{figure*}
+
+These results exhibit the robustness of \verb|BBNet|
+in tasks that involve parameter sweeps, where rapid evaluations are essential. 
+By retaining the outcomes of traditional numerical solvers
+while offering a speed-up of several orders of magnitude,
+\verb|BBNet| enables efficient, bias-free cosmological inferences with BBN data,
+even when the prior ranges of parameters are wide.
+
+
+\section{Comparison Between BBNet Emulations and Simplified BBN Calculations}
+\label{sec:comparison}
+
+%The practical utility of a reduced BBN emulator depends on two independent criteria: its computational efficiency when incorporated into large-scale Monte Carlo analyses, where tens of thousands of network evaluations may be required, and its ability to reproduce the benchmark abundances obtained from the complete reaction network without introducing systematic bias.
+%To assess both aspects, we compare the performance of \verb|BBNet| with the simplified reaction networks implemented in \verb|PArthENoPE| and \verb|AlterBBN|.
+
+Efficient parameter estimation in BBN has traditionally imposed a trade-off between computational speed and theoretical precision. Standard codes often utilize simplified reaction networks to accelerate large-scale Monte Carlo analyses. This gain in speed is achieved at the cost of introducing systematic bias. In this section, we demonstrate that the \verb|BBNet| emulator effectively resolves this tension. By comparing \verb|BBNet| with the reduced-network implementations in \verb|PArthENoPE| and \verb|AlterBBN|, we show that our neural network approach preserves the high fidelity of the full reaction network while matching the computational efficiency of truncated numerical schemes. Consequently, \verb|BBNet| provides a superior alternative to simplified direct integration methods.
+
+We show this amazing result by benchmarking the emulator's orders-of-magnitude acceleration within a realistic MCMC framework (Sec .~\ref {sec:mcmc}) and demonstrating, through residual analysis, that it eliminates the systematic biases characteristic of truncated reaction networks (Sec .~\ref{accuracy_vs}).
+
+\subsection{Sampling efficiency comparison across BBN solvers in MCMC inference}
+\label{sec:mcmc}
+
+To quantify the computational acceleration provided by \verb|BBNet| within a realistic cosmological parameter estimation pipeline, we performed benchmark tests under Markov Chain Monte Carlo (MCMC) conditions. Benchmarks were conducted using a single MCMC chain of $1000$ steps for each solver, allowing for a direct assessment of wall-clock time and throughput.
+
+%The study included two configurations of \verb|PArthENoPE|: the high-accuracy complete network, which tracks 26 nuclides by solving 100 coupled differential equations, and the small-network approximation, which follows nine nuclides through 40 equations, as described in Ref.~\cite{2008CoPhC.178..956P}.
+
+We evaluated the emulator against two standard BBN codes, selecting configurations that represent the traditional spectrum of the speed-accuracy trade-off: for \verb|PArthENoPE|, we compared against both the standard high-accuracy mode (complete network, 26 nuclides via 100 ODEs) and the simplified approximation (small network, 9 nuclides via 40 ODEs~\cite{2008CoPhC.178..956P}). The latter represents a typical strategy to accelerate inference at the cost of theoretical completeness. For \verb|AlterBBN|, we examined the high-precision RK2\_halfstep mode (\verb|failsafe=7|), which enforces strict consistency checks, versus the standard RK2 mode (\verb|failsafe=3|), a faster scheme lacking half-step validation~\cite{2018arXiv180611095A}. The standard RK2 mode serves as a baseline for the fastest available direct numerical integration.
+
+\begin{table*}[ht]
+\caption{\raggedright Comparison of MCMC computational time costs and speedup for BBN calculations.}
+\label{tab:mcmc_speed_comparison}
+\begin{ruledtabular}
+\begin{tabular}{lcccc}
+\textbf{Method} & \textbf{Steps} & \textbf{Chains} & \textbf{Total Inference Time (s)} & \textbf{Speedup} \\
+\midrule
+\multicolumn{5}{c}{\textit{Comparison Group 1: PArthENoPE}} \\
+PArthENoPE (complete) & 1000 & 1 & 16860.39 & $1\times$ \\
+PArthENoPE (small)  & 1000 & 1 & 830.38  & ~$ 20.3\times$ \\
+BBNet Emulator (trained on PArthENoPE) & 1000 & 1 & 2.29 & $7.4\times10^{3}$ \\
+\midrule
+\multicolumn{5}{c}{\textit{Comparison Group 2: AlterBBN}} \\
+AlterBBN (RK2\_halfstep) & 1000 & 1 & 21267.83 & $1\times$ \\
+AlterBBN (RK2) & 1000 & 1 & 569.49  & $37.3\times$ \\
+BBNet Emulator (trained on \verb|AlterBBN|) & 1000 & 1 & 7.64 & $2.7\times10^{3}$ \\
+\bottomrule
+\end{tabular}
+\end{ruledtabular}
+\end{table*}
+
+The benchmark results, summarized in Table~\ref{tab:mcmc_speed_comparison}, confirm that \verb|BBNet| radically alters the computational landscape. Against the \verb|PArthENoPE| benchmarks, the emulator achieves a speedup factor of $\sim 7.4\times10^{3}$ relative to the complete network. Crucially, it also outperforms the simplified small-network approximation by a factor of $\sim 360$. This result implies that users no longer need to resort to the small-network approximation: \verb|BBNet| is not only more accurate (as it emulates the full network) but also significantly faster than the reduced code.
+
+Similarly, for the \verb|AlterBBN| group, \verb|BBNet| accelerates inference by $\sim 2.7\times10^{3}$ relative to the rigorous RK2\_halfstep integrator and outperforms the standard RK2 mode by a factor of $\sim 75$. The slightly higher baseline overhead in the \verb|AlterBBN| emulator stems from the solver's internal expert mode for adaptive integration (see Appendix~B.5). However, this implementation detail is negligible in practice, as the emulator still reduces the total inference time for 1000 steps from several hours to mere seconds.
+
+\subsection{Residual distributions in emulator outputs}
+\label{accuracy_vs}
+
+While the previous subsection established the computational superiority of \verb|BBNet|, practical application in cosmology requires that this speed does not come at the cost of accuracy. Simplified numerical schemes, such as the \verb|PArthENoPE| small-network configuration or the standard RK2 integration in \verb|AlterBBN|, typically achieve speedups by introducing systematic approximations. These often manifest as consistent directional biases in the predicted abundances, which can propagate into posterior distributions during parameter estimation.
+
+We test the emulator's accuracy by analyzing the distribution of relative errors against the high-precision baselines (the complete network for \verb|PArthENoPE| and the RK2\_halfstep mode for \verb|AlterBBN|). The statistical metrics—mean percentage error (MPE), median percentage error, and root-mean-square percentage error (RMSPE)—are summarized in Table~\ref{tab:error_summary_combined}.
+
+\begin{table}[ht]
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \caption{\raggedright
+    Relative percentage error metrics (mean, median, RMSPE) for emulator comparisons
+    using AlterBBN and PArthENoPE datasets (grouped labels below).}
+  \label{tab:error_summary_combined}
+  \begin{tabular}{llrrr}
+    \toprule
+    Abundance & Models & \multicolumn{3}{c}{Percentage Error (\%)} \\
+    \cmidrule(lr){3-5}
+              &        & Mean & Median & RMS \\
+    \midrule
+    \multicolumn{5}{c}{\emph{PArthENoPE}} \\
+    \addlinespace[2pt]
+    \multirow{2}{*}{$Y_\mathrm{P}$}
+      & Small Net  & $ -0.0083$ & $ -0.0083$ & $0.0088$ \\
+      & BBNet      & $ -0.0011$ & $ -0.0005$ & $0.0158$ \\
+    \multirow{2}{*}{$\mathrm{D/H}$}
+      & Small Net  & $ 0.0768$ & $ 0.0765$ & $0.0771$ \\
+      & BBNet      & $ 0.0013$ & $ -0.0007$ & $0.0503$ \\
+    \addlinespace[4pt]
+    \multicolumn{5}{c}{\emph{AlterBBN}} \\
+    \addlinespace[2pt]
+    \multirow{2}{*}{$Y_\mathrm{P}$}
+      & RK2        & $-0.0109$ & $-0.0089$ & $0.0221$ \\
+      & BBNet      & $-0.0016$ & $-0.0011$ & $0.0175$ \\
+    \multirow{2}{*}{$\mathrm{D/H}$}
+      & RK2        & $-0.1563$ & $-0.1368$ & $0.2033$ \\
+      & BBNet      & $0.0002$ & $0.0014$ & $0.0799$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\begin{figure*}[t]
+  \centering
+  \subfloat[\label{fig:error_yp}]{%
+    \includegraphics[width=0.48\textwidth,keepaspectratio]{pca_al_yp_error_histogram.pdf}
+  }\hfill
+  \subfloat[\label{fig:error_dh}]{%
+    \includegraphics[width=0.48\textwidth,keepaspectratio]{pca_al_dh_error_histogram.pdf}
+  }
+    \caption{\raggedright
+    Relative error distributions (in percent) for $Y_\mathrm{P}$ in the left panel and for $\mathrm{D/H}$ in the right panel, evaluated over the AlterBBN parameter grid. 
+    All errors are taken with respect to a high-accuracy reference solution obtained with the RK2 integrator at half step size (RK2\_halfstep), which enforces a half-step consistency check at each stage. Blue histograms show the deviation of the standard RK2 mode from the RK2\_halfstep reference; orange histograms show the deviation of BBNet from the same reference, with $\delta(\%) = 100\,\bigl(y_{\text{method}}-y_{\text{ref}}\bigr)/y_{\text{ref}}$. Dashed vertical lines in matching colors mark the mean signed error for each method. To resolve fine differences, the horizontal axis spans $\pm 0.05\%$ for $Y_\mathrm{P}$ and $\pm 0.5\%$ for $\mathrm{D/H}$.}
+    \label{fig:error_comparison}
+\end{figure*}
+
+For the \verb|PArthENoPE| dataset, \verb|BBNet| demonstrates a critical advantage in bias reduction. As shown in the upper panel of Table~\ref{tab:error_summary_combined}, the small-network approximation introduces a systematic offset of $\sim 0.08\%$ in $\mathrm{D/H}$. In contrast, \verb|BBNet| reduces this mean error to effectively zero ($0.0013\%$). While the emulator's RMSPE is slightly higher for $Y_\mathrm{P}$ ($0.0158\%$ vs. $0.0088\%$), this stochastic scatter is sub-percent and symmetric. In Bayesian inference, a small, random noise component is far more benign than the rigid systematic shifts inherent in the small-network approximation. The performance gain is even more pronounced in the comparison with \verb|AlterBBN| (lower panel of Table~\ref{tab:error_summary_combined} and Fig.~\ref{fig:error_comparison}). The standard RK2 solver exhibits a significant systematic drift, underestimating $\mathrm{D/H}$ by $\sim 0.16\%$ and introducing an RMSPE of $\sim 0.20\%$.\verb|BBNet| corrects this behavior entirely. As visualized in Fig.~\ref{fig:error_comparison}, the emulator's error distribution (orange) is perfectly centered around zero, faithfully reproducing the reference RK2\_halfstep solution.
+
+Quantitatively, \verb|BBNet| reduces the RMSPE in $\mathrm{D/H}$ by a factor of $2.5$ compared to the standard RK2 solver, while simultaneously eliminating the mean bias. These results confirm that \verb|BBNet| does not merely mimic the simplified codes; it supersedes them. By delivering the statistical accuracy of full-network calculations with negligible systematic bias, it ensures that the resulting cosmological constraints are limited only by observational precision, not by the computational shortcuts of the theoretical solver.
+
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have developed \verb|BBNet|, a lightweight attention-augmented feed-forward emulator for predicting Big Bang Nucleosynthesis (BBN) abundances.
+Using harmonized nuclear inputs across \verb|PArthENoPE| and \verb|AlterBBN|, and Latin-hypercube samples drawn from the priors listed in Table~\ref{tab:priors}, the emulator was trained on $10^{4}$ full-network evaluations for each code to predict $Y_\mathrm{P}$ and $\mathrm{D/H}$.
+
+Across both frameworks, \verb|BBNet| reproduces the benchmark (complete-network) predictions with subpercent accuracy and negligible bias, as shown by the parity plots and residual distributions.
+In the \verb|PArthENoPE| tests, it achieves smaller mean and median residuals than the small-network mode for both abundances, providing closer agreement with the reference solver.
+Even relative to the fastest small-network configuration, \verb|BBNet| yields an average inference speedup of about $10^{3}$ on identical hardware, and up to $10^{4}$ compared with high-accuracy ODE solvers (see Sec.~\ref{sec:mcmc}).
+These accuracy gains are obtained with minimal computational cost.
+
+The resulting combination of precision and efficiency is particularly advantageous for large-scale Bayesian pipelines, where repeated BBN evaluations often represent a computational bottleneck.
+By matching the accuracy of the full solver while avoiding the systematic offsets associated with reduced networks and approximate integrators, \verb|BBNet| enables fast and bias-resistant inference over the relevant parameter space.
+Within the training domain defined by Table~\ref{tab:priors}, the emulator can be used as a drop-in module for forward modeling, and retraining remains inexpensive if nuclear inputs are updated or the parameter domain is expanded.
+
+Future extensions will focus on expanding the emulator’s output to include the primordial abundances of Helium‑3 and Lithium‑7, thereby enabling direct modeling of the so-called “cosmological lithium problem,” in which standard BBN predictions for Li-7 exceed observations by a factor of about three to four. We will also perform a dedicated MCMC inference study of Li-7 to explore its sensitivity to reaction-rate uncertainties and beyond-standard-model effects, using BBNet’s rapid evaluation capability to overcome the sampling bottleneck inherent in full BBN solvers. All source code, pretrained models, and datasets used in this work are publicly available at \url{https://github.com/Hdiao112/BBNet.git}
+
+
+\section{ACKNOWLEDGMENTS}
+F.Z. gratefully acknowledges the continuous support and valuable advice of the MIT LIGO Laboratory. This work was supported in part by the Ministry of Science and Technology of the People’s Republic of China (Grant No. 2023ZD0120704 under Project No. 2023ZD0120700) and by the National Natural Science Foundation of China (Grant No. 62372409). B.L. is supported by the National Natural Science Foundation of China (Grant Nos. 12203012 and 12494575) and the Guangxi Natural Science Foundation (Grant No. 2023GXNSFBA026114). Additional support was provided by the Guangxi Talent Program (“Highland of Innovation Talents”). 
+
+
+\appendix
+\section{Expert mode in BBNet}
+\label{app:experts}
+
+We employ a two-stage design with one \emph{base} checkpoint trained on the full dataset and two band-specialized experts trained on
+filtered subsets with their own scaler packs. All three models share the same backbone; each checkpoint is saved with its matching scalers to ensure reversible preprocessing.
+
+At inference we support two modes. With experts enabled (\verb|--exp|), we run the base model once,
+invert the base prediction $\mathrm{D/H}$ to obtain
+\[ \widehat{\mathrm{D/H}}_{\text{base}} \;\begin{cases} \in [10^{-7},\,10^{-5}) \Rightarrow \text{Expert 2},\\[2pt] \in [10^{-5},\,10^{-3}] \Rightarrow \text{Expert 1}, \end{cases} \]
+otherwise we keep the base output. For routed samples we reapply the target expert’s scalers, evaluate the expert, and invert both heads; $Y_\mathrm{P}$ follows the same route. Without experts, a single base forward and inversion produce the final predictions. Band-specific scalers are necessary for the experts because their training distributions differ from the global one; the base
+uses global scalers.
+
+For cost accounting we report measured per-sample wall times and explicit FLOPs for this backbone(\texttt{ResMLPWithAttn}: in$=4$, hidden$=4096$, depth$=8$, heads$=8$, out$=2$; one multiply–add counts as 2 FLOPs). In the \textsc{AlterBBN} run with $N=2000$ we routed nearly all samples ($f\!\approx\!1$), yielding the timings in Table~\ref{tab:exp_cost_numeric}. Because all checkpoints share the same parameterization, loading three models increases the model-weight footprint to $\sim3\times$ that of a single checkpoint; lazy-loading one expert at a time reduces the peak to $\sim2\times$.
+
+\begin{table}[ht]
+  \caption{\raggedright
+    Runtime and resource comparison for \emph{base-only} and \emph{experts-on} on the same test set. Per-sample times are measured over repeated runs. FLOPs are computed per sample for the exact backbone and scalers used in each mode. The memory column reports the fp32 model-weight footprint and the size of the scaler pack for each mode.}
+  \label{tab:exp_cost_numeric}
+  \begin{ruledtabular}
+  \begin{tabular}{lccp{0.3\linewidth}}
+    \textbf{Mode} & \textbf{time ($\mu$s)} & \textbf{FLOPs} & \textbf{Memory} \\
+    \hline
+    Base only
+      & 36.5--56.2
+      & $4.03\times10^{8}$
+      & \textit{model}~$\approx 768$\,MiB\\
+    Experts
+      & 74.6--97.3
+      & $8.05\times10^{8}$
+      & \textit{model}~$\approx 2.25$\,GiB \\
+  \end{tabular}
+  \end{ruledtabular}
+\end{table}
+
+
+
+%\bibliographystyle{21cm} % Choose your citation style
+\bibliography{refs}
+\end{document}
