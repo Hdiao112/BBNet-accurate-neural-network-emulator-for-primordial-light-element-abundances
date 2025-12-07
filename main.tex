@@ -1123,21 +1123,23 @@ even when the prior ranges of parameters are wide.
 \section{Comparison Between BBNet Emulations and Simplified BBN Calculations}
 \label{sec:comparison}
 
-%The practical utility of a reduced BBN emulator depends on two independent criteria: its computational efficiency when incorporated into large-scale Monte Carlo analyses, where tens of thousands of network evaluations may be required, and its ability to reproduce the benchmark abundances obtained from the complete reaction network without introducing systematic bias.
-%To assess both aspects, we compare the performance of \verb|BBNet| with the simplified reaction networks implemented in \verb|PArthENoPE| and \verb|AlterBBN|.
+Cosmological parameter estimation typically demands a trade-off between computational speed and theoretical precision. To accelerate Monte Carlo sampling, standard pipelines often rely on reduced nuclear networks or simplified ordinary differential equation (ODE) integrators. While computationally efficient, these approximations introduce systematic biases that can propagate into the final inference.
 
-Efficient parameter estimation in BBN has traditionally imposed a trade-off between computational speed and theoretical precision. Standard codes often utilize simplified reaction networks to accelerate large-scale Monte Carlo analyses. This gain in speed is achieved at the cost of introducing systematic bias. In this section, we demonstrate that the \verb|BBNet| emulator effectively resolves this tension. By comparing \verb|BBNet| with the reduced-network implementations in \verb|PArthENoPE| and \verb|AlterBBN|, we show that our neural network approach preserves the high fidelity of the full reaction network while matching the computational efficiency of truncated numerical schemes. Consequently, \verb|BBNet| provides a superior alternative to simplified direct integration methods.
+In this section, we argue that the \verb|BBNet| emulator renders this compromise obsolete. By benchmarking \verb|BBNet| against the reduced-network modes of \verb|PArthENoPE| and the simplified integration schemes of \verb|AlterBBN|, we show that the emulator retains the accuracy of the complete reaction network while matching the throughput of the simplified methods.
+Consequently, \verb|BBNet| serves as a comprehensive replacement for these approximate first-principles calculations in high-precision analyses.
 
-We show this amazing result by benchmarking the emulator's orders-of-magnitude acceleration within a realistic MCMC framework (Sec .~\ref {sec:mcmc}) and demonstrating, through residual analysis, that it eliminates the systematic biases characteristic of truncated reaction networks (Sec .~\ref{accuracy_vs}).
+The evaluation proceeds in two parts: Sec .~\ref {sec:mcmc} quantifies the sampling throughput within a realistic MCMC framework, and Sec .~\ref{accuracy_vs} analyzes the residual distributions to demonstrate the elimination of systematic biases characteristic of reduced networks.
 
 \subsection{Sampling efficiency comparison across BBN solvers in MCMC inference}
 \label{sec:mcmc}
 
-To quantify the computational acceleration provided by \verb|BBNet| within a realistic cosmological parameter estimation pipeline, we performed benchmark tests under Markov Chain Monte Carlo (MCMC) conditions. Benchmarks were conducted using a single MCMC chain of $1000$ steps for each solver, allowing for a direct assessment of wall-clock time and throughput.
+%To quantify the computational acceleration provided by \verb|BBNet| within a realistic cosmological parameter estimation pipeline, we performed benchmark tests under Markov Chain Monte Carlo (MCMC) conditions. Benchmarks were conducted using a single MCMC chain of $1000$ steps for each solver, allowing for a direct assessment of wall-clock time and throughput.
+To quantify the computational acceleration provided by \verb|BBNet| within a realistic cosmological parameter estimation pipeline, we conducted benchmark tests under Markov Chain Monte Carlo (MCMC) conditions. Benchmarks were performed using a single MCMC chain of $1000$ steps for each solver, allowing for a direct assessment of wall-clock time and sampling throughput.
 
-%The study included two configurations of \verb|PArthENoPE|: the high-accuracy complete network, which tracks 26 nuclides by solving 100 coupled differential equations, and the small-network approximation, which follows nine nuclides through 40 equations, as described in Ref.~\cite{2008CoPhC.178..956P}.
+%We evaluated the emulator against two standard BBN codes, selecting configurations that represent the traditional spectrum of the speed-accuracy trade-off: for \verb|PArthENoPE|, we compared against both the standard high-accuracy mode (complete network, 26 nuclides via 100 ODEs) and the simplified approximation (small network, 9 nuclides via 40 ODEs~\cite{2008CoPhC.178..956P}). The latter represents a typical strategy to accelerate inference at the cost of theoretical completeness. For \verb|AlterBBN|, we examined the high-precision RK2\_halfstep mode (\verb|failsafe=7|), which enforces strict consistency checks, versus the standard RK2 mode (\verb|failsafe=3|), a faster scheme lacking half-step validation~\cite{2018arXiv180611095A}. The standard RK2 mode serves as a baseline for the fastest available direct numerical integration.
 
-We evaluated the emulator against two standard BBN codes, selecting configurations that represent the traditional spectrum of the speed-accuracy trade-off: for \verb|PArthENoPE|, we compared against both the standard high-accuracy mode (complete network, 26 nuclides via 100 ODEs) and the simplified approximation (small network, 9 nuclides via 40 ODEs~\cite{2008CoPhC.178..956P}). The latter represents a typical strategy to accelerate inference at the cost of theoretical completeness. For \verb|AlterBBN|, we examined the high-precision RK2\_halfstep mode (\verb|failsafe=7|), which enforces strict consistency checks, versus the standard RK2 mode (\verb|failsafe=3|), a faster scheme lacking half-step validation~\cite{2018arXiv180611095A}. The standard RK2 mode serves as a baseline for the fastest available direct numerical integration.
+We benchmark the emulator against two standard BBN codes, selecting configurations that represent the traditional spectrum of the speed-accuracy trade-off. For \verb|PArthENoPE|, we compare the standard high-accuracy mode (complete network, 26 nuclides via 100 ODEs) against the simplified approximation (small network, 9 nuclides via 40 ODEs~\cite{2008CoPhC.178..956P}).
+The latter represents a typical strategy to accelerate inference at the cost of theoretical completeness. For \verb|AlterBBN|, we examine the high-precision RK2\_halfstep mode (\verb|failsafe=7|), which enforces strict consistency checks, versus the standard RK2 mode (\verb|failsafe=3|), a faster scheme lacking half-step validation~\cite{2018arXiv180611095A}. The standard RK2 mode serves as a baseline for the fastest available direct numerical integration.
 
 \begin{table*}[ht]
 \caption{\raggedright Comparison of MCMC computational time costs and speedup for BBN calculations.}
@@ -1160,16 +1162,19 @@ BBNet Emulator (trained on \verb|AlterBBN|) & 1000 & 1 & 7.64 & $2.7\times10^{3}
 \end{ruledtabular}
 \end{table*}
 
-The benchmark results, summarized in Table~\ref{tab:mcmc_speed_comparison}, confirm that \verb|BBNet| radically alters the computational landscape. Against the \verb|PArthENoPE| benchmarks, the emulator achieves a speedup factor of $\sim 7.4\times10^{3}$ relative to the complete network. Crucially, it also outperforms the simplified small-network approximation by a factor of $\sim 360$. This result implies that users no longer need to resort to the small-network approximation: \verb|BBNet| is not only more accurate (as it emulates the full network) but also significantly faster than the reduced code.
+The results, summarized in Table~\ref{tab:mcmc_speed_comparison}, demonstrate that \verb|BBNet| provides substantial gains in computational efficiency. Relative to the complete \verb|PArthENoPE| network, the emulator achieves a speedup factor of $\sim 7.4\times10^{3}$. More significantly, it outperforms the simplified small-network approximation by a factor of $\sim 360$. This finding renders the small-network approximation obsolete: \verb|BBNet| is not only theoretically accurate (as it reproduces the full network) but also computationally faster than the reduced code.
 
-Similarly, for the \verb|AlterBBN| group, \verb|BBNet| accelerates inference by $\sim 2.7\times10^{3}$ relative to the rigorous RK2\_halfstep integrator and outperforms the standard RK2 mode by a factor of $\sim 75$. The slightly higher baseline overhead in the \verb|AlterBBN| emulator stems from the solver's internal expert mode for adaptive integration (see Appendix~B.5). However, this implementation detail is negligible in practice, as the emulator still reduces the total inference time for 1000 steps from several hours to mere seconds.
+%Similarly, for the \verb|AlterBBN| group, \verb|BBNet| accelerates inference by $\sim 2.7\times10^{3}$ relative to the rigorous RK2\_halfstep integrator and outperforms the standard RK2 mode by a factor of $\sim 75$. The slightly higher baseline overhead in the \verb|AlterBBN| emulator stems from the solver's internal expert mode for adaptive integration (see Appendix~B.5). However, this implementation detail is negligible in practice, as the emulator still reduces the total inference time for 1000 steps from several hours to mere seconds.
+
+Similarly, for the \verb|AlterBBN| group, \verb|BBNet| accelerates inference by $\sim 2.7\times10^{3}$ relative to the rigorous RK2\_halfstep integrator and exceeds the speed of the standard RK2 mode by a factor of $\sim 75$. The moderately higher overhead observed in the \verb|AlterBBN| emulator, compared to the \verb|PArthENoPE| counterpart, arises from the internal expert mode mechanism used to handle adaptive integration boundaries (see Appendix~\ref{app: experts}). This overhead, however, does not compromise the overall efficiency, as the total inference time for 1000 steps is reduced from several hours to seconds.
 
 \subsection{Residual distributions in emulator outputs}
 \label{accuracy_vs}
 
-While the previous subsection established the computational superiority of \verb|BBNet|, practical application in cosmology requires that this speed does not come at the cost of accuracy. Simplified numerical schemes, such as the \verb|PArthENoPE| small-network configuration or the standard RK2 integration in \verb|AlterBBN|, typically achieve speedups by introducing systematic approximations. These often manifest as consistent directional biases in the predicted abundances, which can propagate into posterior distributions during parameter estimation.
+While the previous subsection established the computational efficiency of \verb|BBNet|, its practical utility for precision cosmology depends critically on prediction accuracy. Simplified numerical schemes achieve acceleration by sacrificing theoretical completeness. This trade-off typically manifests as consistent directional biases in the predicted abundances, which act as systematic errors that can propagate into the posterior distributions of cosmological parameters. In contrast, a robust emulator must reproduce the ground truth of the complete physics network without introducing such serious shifts.
 
-We test the emulator's accuracy by analyzing the distribution of relative errors against the high-precision baselines (the complete network for \verb|PArthENoPE| and the RK2\_halfstep mode for \verb|AlterBBN|). The statistical metrics—mean percentage error (MPE), median percentage error, and root-mean-square percentage error (RMSPE)—are summarized in Table~\ref{tab:error_summary_combined}.
+We quantify the accuracy of \verb|BBNet| by analyzing the distribution of relative errors with respect to the high-precision baselines (the complete network for \verb|PArthENoPE| and the RK2\_halfstep mode for \verb|AlterBBN|).
+The statistical metrics, including the mean percentage error (MPE) as a measure of bias and the root-mean-square percentage error (RMSPE) as a measure of dispersion, are summarized in Table~\ref{tab:error_summary_combined}.
 
 \begin{table}[ht]
   \centering
@@ -1216,32 +1221,43 @@ We test the emulator's accuracy by analyzing the distribution of relative errors
     \includegraphics[width=0.48\textwidth,keepaspectratio]{pca_al_dh_error_histogram.pdf}
   }
     \caption{\raggedright
-    Relative error distributions (in percent) for $Y_\mathrm{P}$ in the left panel and for $\mathrm{D/H}$ in the right panel, evaluated over the AlterBBN parameter grid. 
-    All errors are taken with respect to a high-accuracy reference solution obtained with the RK2 integrator at half step size (RK2\_halfstep), which enforces a half-step consistency check at each stage. Blue histograms show the deviation of the standard RK2 mode from the RK2\_halfstep reference; orange histograms show the deviation of BBNet from the same reference, with $\delta(\%) = 100\,\bigl(y_{\text{method}}-y_{\text{ref}}\bigr)/y_{\text{ref}}$. Dashed vertical lines in matching colors mark the mean signed error for each method. To resolve fine differences, the horizontal axis spans $\pm 0.05\%$ for $Y_\mathrm{P}$ and $\pm 0.5\%$ for $\mathrm{D/H}$.}
+    Distributions of relative percentage errors for $Y_\mathrm{P}$ (left panel) and $\mathrm{D/H}$ (right panel) evaluated over the AlterBBN test set.
+    Errors are computed with respect to the high-accuracy reference solution ($\mathbf{y}_{\mathrm{ref}}$) obtained using the RK2 integrator with half-step validation (RK2\_halfstep).
+    Blue histograms represent the residuals of the standard RK2 mode ($\mathbf{y}_{\mathrm{RK2}}$), illustrating the systematic bias introduced by the simplified integration scheme.
+    Orange histograms show the residuals of the BBNet emulator ($\mathbf{y}_{\mathrm{BBNet}}$).
+    The relative error is defined as $\delta(\%) = 100 \times (y_{\mathrm{method}} - y_{\mathrm{ref}}) / y_{\mathrm{ref}}$.
+    Dashed vertical lines indicate the mean signed error (MPE) for each method.
+    Note that the horizontal axes are zoomed to $\pm 0.05\%$ for $Y_\mathrm{P}$ and $\pm 0.5\%$ for $\mathrm{D/H}$ to resolve the fine structure of the distributions.}
     \label{fig:error_comparison}
 \end{figure*}
 
-For the \verb|PArthENoPE| dataset, \verb|BBNet| demonstrates a critical advantage in bias reduction. As shown in the upper panel of Table~\ref{tab:error_summary_combined}, the small-network approximation introduces a systematic offset of $\sim 0.08\%$ in $\mathrm{D/H}$. In contrast, \verb|BBNet| reduces this mean error to effectively zero ($0.0013\%$). While the emulator's RMSPE is slightly higher for $Y_\mathrm{P}$ ($0.0158\%$ vs. $0.0088\%$), this stochastic scatter is sub-percent and symmetric. In Bayesian inference, a small, random noise component is far more benign than the rigid systematic shifts inherent in the small-network approximation. The performance gain is even more pronounced in the comparison with \verb|AlterBBN| (lower panel of Table~\ref{tab:error_summary_combined} and Fig.~\ref{fig:error_comparison}). The standard RK2 solver exhibits a significant systematic drift, underestimating $\mathrm{D/H}$ by $\sim 0.16\%$ and introducing an RMSPE of $\sim 0.20\%$.\verb|BBNet| corrects this behavior entirely. As visualized in Fig.~\ref{fig:error_comparison}, the emulator's error distribution (orange) is perfectly centered around zero, faithfully reproducing the reference RK2\_halfstep solution.
+For the \verb|PArthENoPE| dataset (see the upper block of Table~\ref{tab:error_summary_combined}), \verb|BBNet| demonstrates a distinct advantage in bias elimination. The small network approximation introduces a systematic offset of $\sim 0.08\%$ in $\mathrm{D/H}$, a deviation that is consistent across the parameter space. \verb|BBNet| reduces this mean error to a negligible level ($0.0013\%$).
+Although the emulator exhibits a marginally higher RMSPE for $Y_\mathrm{P}$ compared to the small network ($0.0158\%$ versus $0.0088\%$), this dispersion represents symmetric, zero-mean stochastic noise. In the context of Bayesian inference, such unbiased scatter is preferable to the rigid systematic shifts inherent in the reduced-network approximation, as it avoids shifting the centroids of posterior probability distributions.
 
-Quantitatively, \verb|BBNet| reduces the RMSPE in $\mathrm{D/H}$ by a factor of $2.5$ compared to the standard RK2 solver, while simultaneously eliminating the mean bias. These results confirm that \verb|BBNet| does not merely mimic the simplified codes; it supersedes them. By delivering the statistical accuracy of full-network calculations with negligible systematic bias, it ensures that the resulting cosmological constraints are limited only by observational precision, not by the computational shortcuts of the theoretical solver.
+The advantage of the emulator is further amplified in the comparison with \verb|AlterBBN| (lower block of Table~\ref{tab:error_summary_combined} and Fig.~\ref{fig:error_comparison}). The standard RK2 solver exhibits a significant systematic drift, underestimating $\mathrm{D/H}$ by $\sim 0.16\%$ with an RMSPE of $\sim 0.20\%$. \verb|BBNet| effectively corrects this behavior. As illustrated in Fig.~\ref{fig:error_comparison}, the residual distribution of the emulator (orange histograms) is centered at zero, faithfully reproducing the reference RK2\_halfstep solution without the systematic skew observed in the fast integrator (blue histograms).
+
+Quantitatively, \verb|BBNet| reduces the RMSPE in $\mathrm{D/H}$ by a factor of $2.5$ relative to the standard RK2 solver, while simultaneously suppressing the mean bias to below $10^{-3}\%$. These results confirm that \verb|BBNet| supersedes the simplified numerical schemes. By delivering the statistical accuracy of full-network calculations with negligible systematic bias, the emulator ensures that cosmological constraints are limited only by observational precision rather than by the computational shortcuts of the theoretical solver.
 
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-We have developed \verb|BBNet|, a lightweight attention-augmented feed-forward emulator for predicting Big Bang Nucleosynthesis (BBN) abundances.
-Using harmonized nuclear inputs across \verb|PArthENoPE| and \verb|AlterBBN|, and Latin-hypercube samples drawn from the priors listed in Table~\ref{tab:priors}, the emulator was trained on $10^{4}$ full-network evaluations for each code to predict $Y_\mathrm{P}$ and $\mathrm{D/H}$.
+We have presented \verb|BBNet|, a deep learning emulator designed to accelerate Big Bang Nucleosynthesis (BBN) calculations without compromising physical accuracy.
+The network employs a residual multi-head attention architecture to capture the non-linear dependencies of primordial abundances on cosmological parameters.
+We trained the model using Latin-hypercube samples derived from two independent BBN codes, \verb|PArthENoPE| and \verb|AlterBBN|, ensuring consistent nuclear physics inputs across both datasets.
+The training domain covers the standard $\Lambda$CDM parameters as well as extensions involving dark radiation and stiff-fluid cosmologies.
 
-Across both frameworks, \verb|BBNet| reproduces the benchmark (complete-network) predictions with subpercent accuracy and negligible bias, as shown by the parity plots and residual distributions.
-In the \verb|PArthENoPE| tests, it achieves smaller mean and median residuals than the small-network mode for both abundances, providing closer agreement with the reference solver.
-Even relative to the fastest small-network configuration, \verb|BBNet| yields an average inference speedup of about $10^{3}$ on identical hardware, and up to $10^{4}$ compared with high-accuracy ODE solvers (see Sec.~\ref{sec:mcmc}).
-These accuracy gains are obtained with minimal computational cost.
+Our evaluations demonstrate that \verb|BBNet| effectively resolves the traditional conflict between computational speed and theoretical precision.
+Across both code bases, the emulator reproduces the benchmark predictions of the complete reaction networks with negligible mean bias and sub-percent dispersion.
+Crucially, \verb|BBNet| eliminates the systematic offsets inherent in reduced-network approximations (such as the \verb|PArthENoPE| small network) and simplified integration schemes. In terms of efficiency, the emulator achieves inference speedups of $\mathcal{O}(10^{3})$ relative to the fastest reduced networks and up to $\mathcal{O}(10^{4})$ compared to high-accuracy ODE solvers.
+These gains allow for the replacement of approximate methods with high-fidelity emulation at minimal computational cost.
 
-The resulting combination of precision and efficiency is particularly advantageous for large-scale Bayesian pipelines, where repeated BBN evaluations often represent a computational bottleneck.
-By matching the accuracy of the full solver while avoiding the systematic offsets associated with reduced networks and approximate integrators, \verb|BBNet| enables fast and bias-resistant inference over the relevant parameter space.
-Within the training domain defined by Table~\ref{tab:priors}, the emulator can be used as a drop-in module for forward modeling, and retraining remains inexpensive if nuclear inputs are updated or the parameter domain is expanded.
+This combination of accuracy and throughput removes the primary bottleneck in large-scale cosmological parameter estimation.
+\verb|BBNet| serves as a robust, bias-resistant module for forward modeling within Bayesian pipelines, enabling rigorous exploration of high-dimensional parameter spaces.
+Furthermore, the framework remains flexible: unlike static interpolation grids, the network can be efficiently retrained to accommodate updated nuclear reaction rates or expanded prior ranges.
 
-Future extensions will focus on expanding the emulator’s output to include the primordial abundances of Helium‑3 and Lithium‑7, thereby enabling direct modeling of the so-called “cosmological lithium problem,” in which standard BBN predictions for Li-7 exceed observations by a factor of about three to four. We will also perform a dedicated MCMC inference study of Li-7 to explore its sensitivity to reaction-rate uncertainties and beyond-standard-model effects, using BBNet’s rapid evaluation capability to overcome the sampling bottleneck inherent in full BBN solvers. All source code, pretrained models, and datasets used in this work are publicly available at \url{https://github.com/Hdiao112/BBNet.git}
+Future work will extend the emulator to predict the primordial abundances of Helium-3 and Lithium-7. This will facilitate a comprehensive investigation of the ``cosmological lithium problem,'' allowing for dedicated MCMC studies that jointly constrain reaction-rate uncertainties and beyond-Standard-Model effects.
+All source code, pretrained models, and datasets used in this work are publicly available at \url{https://github.com/Hdiao112/BBNet.git}.
 
 
 \section{ACKNOWLEDGMENTS}
@@ -1249,42 +1265,48 @@ F.Z. gratefully acknowledges the continuous support and valuable advice of the M
 
 
 \appendix
-\section{Expert mode in BBNet}
+\section{Hierarchical Expert Mode for Adaptive Refinement}
 \label{app:experts}
 
-We employ a two-stage design with one \emph{base} checkpoint trained on the full dataset and two band-specialized experts trained on
-filtered subsets with their own scaler packs. All three models share the same backbone; each checkpoint is saved with its matching scalers to ensure reversible preprocessing.
+To address the wide dynamic range and complex distribution of the \verb|AlterBBN| dataset, we implement a two-stage hierarchical inference strategy. The architecture consists of a global \emph{base} model, trained on the complete dataset, augmented by two domain-specialized \emph{expert} models trained on filtered subsets of the parameter space. All three networks share an identical backbone architecture (\verb|ResMLPWithAttn|).
+Each model checkpoint is stored alongside its corresponding normalization statistics (scalers) to ensure that the input-output transformations remain strictly reversible and consistent with the specific training distribution of each expert.
 
-At inference we support two modes. With experts enabled (\verb|--exp|), we run the base model once,
-invert the base prediction $\mathrm{D/H}$ to obtain
-\[ \widehat{\mathrm{D/H}}_{\text{base}} \;\begin{cases} \in [10^{-7},\,10^{-5}) \Rightarrow \text{Expert 2},\\[2pt] \in [10^{-5},\,10^{-3}] \Rightarrow \text{Expert 1}, \end{cases} \]
-otherwise we keep the base output. For routed samples we reapply the target expert’s scalers, evaluate the expert, and invert both heads; $Y_\mathrm{P}$ follows the same route. Without experts, a single base forward and inversion produce the final predictions. Band-specific scalers are necessary for the experts because their training distributions differ from the global one; the base
-uses global scalers.
+During the inference phase, the framework employs a hard-gating mechanism (activated via the \verb|--exp| flag). The base model first generates a preliminary prediction, $\widehat{\mathrm{D/H}}_{\text{base}}$. This value acts as a decision variable to route the input to the appropriate specialist network or to accept the base prediction, according to the following rule:
+\begin{equation}
+  \widehat{{\mathrm{D/H}}_{\text{out}}} = 
+  \begin{cases} 
+    \text{Expert 2} & \text{if } \widehat{\mathrm{D/H}}_{\text{base}} \in [10^{-7},\,10^{-5}), \\
+    \text{Expert 1} & \text{if } \widehat{\mathrm{D/H}}_{\text{base}} \in [10^{-5},\,10^{-3}], 
+  \end{cases}
+\end{equation}
+For routed samples, the raw inputs are renormalized using the target expert's specific statistics before being processed by the expert network.
+This band-specific renormalization is essential because the statistical moments of the filtered subsets differ significantly from the global distribution, and using global scalers for local experts would degrade precision.
 
-For cost accounting we report measured per-sample wall times and explicit FLOPs for this backbone(\texttt{ResMLPWithAttn}: in$=4$, hidden$=4096$, depth$=8$, heads$=8$, out$=2$; one multiply–add counts as 2 FLOPs). In the \textsc{AlterBBN} run with $N=2000$ we routed nearly all samples ($f\!\approx\!1$), yielding the timings in Table~\ref{tab:exp_cost_numeric}. Because all checkpoints share the same parameterization, loading three models increases the model-weight footprint to $\sim3\times$ that of a single checkpoint; lazy-loading one expert at a time reduces the peak to $\sim2\times$.
+We quantify the computational overhead of this approach in terms of per-sample wall-clock time and theoretical floating-point operations (FLOPs).
+In the \verb|AlterBBN| test run ($N=3000$), the routing fraction is close to unity ($f\!\approx\!1$), meaning nearly all samples trigger a second forward pass. The resulting resource consumption is summarized in Table~\ref{tab:exp_cost_numeric}. Since the expert mechanism requires loading up to three distinct sets of weights, the memory footprint increases by factor of $\sim3$ compared to the base-only mode, although this can be mitigated to $\sim2\times$ via lazy loading.
 
 \begin{table}[ht]
   \caption{\raggedright
-    Runtime and resource comparison for \emph{base-only} and \emph{experts-on} on the same test set. Per-sample times are measured over repeated runs. FLOPs are computed per sample for the exact backbone and scalers used in each mode. The memory column reports the fp32 model-weight footprint and the size of the scaler pack for each mode.}
+    Comparison of computational resources and latency between the \emph{base-only} mode and the \emph{expert} mode.
+    Wall times are measured per sample over repeated trials.
+    FLOPs are calculated for a single inference pass given the specific backbone configuration.
+    The memory column reports the FP32 model weight footprint plus the storage required for the normalization scalers.}
   \label{tab:exp_cost_numeric}
   \begin{ruledtabular}
   \begin{tabular}{lccp{0.3\linewidth}}
-    \textbf{Mode} & \textbf{time ($\mu$s)} & \textbf{FLOPs} & \textbf{Memory} \\
+    \textbf{Inference Mode} & \textbf{Latency ($\mu$s)} & \textbf{FLOPs} & \textbf{Memory} \\
     \hline
     Base only
       & 36.5--56.2
       & $4.03\times10^{8}$
-      & \textit{model}~$\approx 768$\,MiB\\
-    Experts
+      & $\ 768$\,MiB\\
+    Expert mode
       & 74.6--97.3
       & $8.05\times10^{8}$
-      & \textit{model}~$\approx 2.25$\,GiB \\
+      & $\ 2.25$\,GiB \\
   \end{tabular}
   \end{ruledtabular}
 \end{table}
 
-
-
-%\bibliographystyle{21cm} % Choose your citation style
 \bibliography{refs}
 \end{document}
